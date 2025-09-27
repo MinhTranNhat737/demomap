@@ -1,0 +1,549 @@
+/* Custom styles for Taxi Booking Demo */
+
+/* Map container styling */
+#map {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+/* Location input suggestions */
+.location-suggestions {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.suggestion-item {
+    padding: 12px 16px;
+    cursor: pointer;
+    border-bottom: 1px solid #f3f4f6;
+    transition: background-color 0.2s;
+}
+
+.suggestion-item:hover {
+    background-color: #f9fafb;
+}
+
+.suggestion-item:last-child {
+    border-bottom: none;
+}
+
+.suggestion-item.active {
+    background-color: #eff6ff;
+    color: #2563eb;
+}
+
+/* Map markers */
+.custom-marker {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 3px solid white;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    color: white;
+}
+
+.pickup-marker {
+    background-color: #10b981;
+}
+
+.dropoff-marker {
+    background-color: #ef4444;
+}
+
+/* Loading animation */
+.loading {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 3px solid #f3f3f3;
+    border-top: 3px solid #3498db;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Booking status animations */
+.status-success {
+    color: #10b981;
+}
+
+.status-error {
+    color: #ef4444;
+}
+
+.status-pending {
+    color: #f59e0b;
+}
+
+/* Form validation styles */
+.form-error {
+    border-color: #ef4444 !important;
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1) !important;
+}
+
+.error-message {
+    color: #ef4444;
+    font-size: 0.875rem;
+    margin-top: 0.25rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .container {
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+    
+    #map {
+        height: 300px;
+    }
+    
+    .grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Button hover effects */
+.btn-primary {
+    background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+    transition: all 0.3s ease;
+}
+
+.btn-primary:hover {
+    background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 10px 20px rgba(37, 99, 235, 0.3);
+}
+
+/* Card hover effects */
+.card-hover {
+    transition: all 0.3s ease;
+}
+
+.card-hover:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+    width: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}
+
+/* Animation for status updates */
+.fade-in {
+    animation: fadeIn 0.5s ease-in;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Map route styling */
+.route-line {
+    stroke: #2563eb;
+    stroke-width: 4;
+    stroke-opacity: 0.8;
+    fill: none;
+    stroke-dasharray: 10, 10;
+    animation: dash 1s linear infinite;
+}
+
+@keyframes dash {
+    to {
+        stroke-dashoffset: -20;
+    }
+}
+
+/* Price highlight */
+.price-highlight {
+    background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+    color: white;
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    font-weight: bold;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+/* Status indicators */
+.status-indicator {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.5rem 1rem;
+    border-radius: 9999px;
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.status-indicator.success {
+    background-color: #d1fae5;
+    color: #065f46;
+}
+
+.status-indicator.error {
+    background-color: #fee2e2;
+    color: #991b1b;
+}
+
+.status-indicator.pending {
+    background-color: #fef3c7;
+    color: #92400e;
+}
+
+/* Mobile-specific styles */
+@media (max-width: 640px) {
+    .mobile-full-width {
+        width: 100%;
+        margin-bottom: 1rem;
+    }
+    
+    .mobile-stack {
+        flex-direction: column;
+        gap: 1rem;
+    }
+    
+    .mobile-text-center {
+        text-align: center;
+    }
+}
+
+/* Enhanced suggestion styles */
+.location-suggestions {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.suggestion-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    border-bottom: 1px solid #f3f4f6;
+    transition: all 0.2s ease;
+}
+
+.suggestion-item:hover {
+    background-color: #eff6ff;
+    transform: translateX(2px);
+}
+
+.suggestion-item:last-child {
+    border-bottom: none;
+}
+
+.suggestion-item.active {
+    background-color: #dbeafe;
+    color: #1d4ed8;
+    border-left: 3px solid #3b82f6;
+}
+
+/* Pulse animation for highlight markers */
+@keyframes pulse {
+    0% {
+        transform: scale(1);
+        opacity: 1;
+    }
+    50% {
+        transform: scale(1.2);
+        opacity: 0.7;
+    }
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.pulse-marker {
+    animation: pulse 2s infinite;
+}
+
+/* Temporary location marker */
+.temp-location-marker {
+    background: rgba(255, 255, 255, 0.9);
+    border: 2px solid #f59e0b;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    animation: pulse 1.5s infinite;
+}
+
+/* Enhanced map popup styles */
+.leaflet-popup-content {
+    margin: 8px 12px;
+    line-height: 1.4;
+}
+
+.leaflet-popup-content h3 {
+    margin: 0 0 4px 0;
+    font-size: 14px;
+}
+
+.leaflet-popup-content p {
+    margin: 2px 0;
+    font-size: 12px;
+}
+
+/* Focus button styles */
+.focus-location-btn {
+    transition: all 0.2s ease;
+}
+
+.focus-location-btn:hover {
+    transform: scale(1.1);
+}
+
+/* Category icons enhancement */
+.category-icon {
+    width: 24px;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: rgba(59, 130, 246, 0.1);
+    font-size: 14px;
+}
+
+/* Improved suggestion layout */
+.suggestion-content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px;
+}
+
+.suggestion-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.suggestion-name {
+    font-weight: 500;
+    color: #1f2937;
+    margin-bottom: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.suggestion-details {
+    font-size: 11px;
+    color: #6b7280;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.suggestion-actions {
+    display: flex;
+    gap: 4px;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.suggestion-item:hover .suggestion-actions {
+    opacity: 1;
+}
+
+/* Enhanced scrollbar for suggestions */
+.location-suggestions::-webkit-scrollbar {
+    width: 4px;
+}
+
+.location-suggestions::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 2px;
+}
+
+.location-suggestions::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 2px;
+}
+
+.location-suggestions::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+/* Modal styles */
+#locationModal {
+    backdrop-filter: blur(4px);
+}
+
+.location-item {
+    transition: all 0.2s ease;
+}
+
+.location-item:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.location-item .flex button {
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.location-item:hover .flex button {
+    opacity: 1;
+}
+
+/* Category filter button styles */
+.category-filter {
+    transition: all 0.2s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.category-filter:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.category-filter:active {
+    transform: translateY(0);
+}
+
+/* Popular location button enhancements */
+.popular-location {
+    position: relative;
+    overflow: hidden;
+}
+
+.popular-location::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+    transition: left 0.5s;
+}
+
+.popular-location:hover::before {
+    left: 100%;
+}
+
+/* Enhanced focus button */
+.focus-location-btn {
+    position: relative;
+    z-index: 1;
+}
+
+.focus-location-btn::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    background: rgba(59, 130, 246, 0.2);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    transition: width 0.3s, height 0.3s;
+    z-index: -1;
+}
+
+.focus-location-btn:hover::after {
+    width: 100%;
+    height: 100%;
+}
+
+/* Animation for modal appearance */
+@keyframes modalSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+#locationModal .bg-white {
+    animation: modalSlideIn 0.3s ease-out;
+}
+
+/* Enhanced map marker animations */
+@keyframes markerBounce {
+    0%, 20%, 50%, 80%, 100% {
+        transform: translateY(0);
+    }
+    40% {
+        transform: translateY(-10px);
+    }
+    60% {
+        transform: translateY(-5px);
+    }
+}
+
+.bounce-marker {
+    animation: markerBounce 1s ease-in-out;
+}
+
+/* Improved suggestion item hover effects */
+.suggestion-item {
+    position: relative;
+}
+
+.suggestion-item::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 100%;
+    width: 0;
+    background: linear-gradient(90deg, #3b82f6, #1d4ed8);
+    transition: width 0.3s ease;
+    z-index: -1;
+}
+
+.suggestion-item:hover::before {
+    width: 4px;
+}
+
+.suggestion-item:hover {
+    background: linear-gradient(90deg, rgba(59, 130, 246, 0.05), rgba(59, 130, 246, 0.02));
+}

@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Taxi Booking - RadioCar</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body class="bg-gray-50">
+    <!-- Header -->
+    <header class="bg-blue-600 text-white shadow-lg">
+        <div class="container mx-auto px-4 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <i class="fas fa-taxi text-2xl"></i>
+                    <h1 class="text-2xl font-bold">RadioCar Taxi</h1>
+                </div>
+                <div class="hidden md:flex items-center space-x-4">
+                    <span class="text-sm">Hotline: 1900-1234</span>
+                    <span class="text-xs bg-green-500 px-2 py-1 rounded">100% Free</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+        <!-- Booking Form Card -->
+        <div class="max-w-4xl mx-auto">
+            <div class="bg-white rounded-lg shadow-xl p-6 mb-6">
+                <h2 class="text-2xl font-bold text-gray-800 mb-6 text-center">
+                    <i class="fas fa-map-marker-alt text-blue-600 mr-2"></i>
+                    Đặt xe taxi - Chọn điểm đón và trả khách
+                </h2>
+
+                <!-- Location Selection -->
+                <div class="mb-6">
+                    <!-- Step 1: Choose Selection Mode -->
+                    <div id="selectionMode" class="mb-6">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-4">
+                            <i class="fas fa-map-marked-alt text-blue-600 mr-2"></i>
+                            Bước 1: Chọn loại địa điểm
+                        </h3>
+                        <div class="grid md:grid-cols-2 gap-4">
+                            <button id="selectPickupBtn" class="location-mode-btn bg-green-500 hover:bg-green-600 text-white font-bold py-4 px-6 rounded-lg transition-colors duration-200 flex items-center justify-center space-x-3">
+                                <i class="fas fa-map-pin text-2xl"></i>
+                                <div class="text-left">
+                                    <div class="text-lg">Chọn điểm đón</div>
+                                    <div class="text-sm opacity-90">Nơi tài xế sẽ đến đón bạn</div>
+                                </div>
+                            </button>
+                            <button id="selectDropoffBtn" class="location-mode-btn bg-red-500 hover:bg-red-600 text-white font-bold py-4 px-6 rounded-lg transition-colors duration-200 flex items-center justify-center space-x-3">
+                                <i class="fas fa-flag text-2xl"></i>
+                                <div class="text-left">
+                                    <div class="text-lg">Chọn điểm đến</div>
+                                    <div class="text-sm opacity-90">Nơi bạn muốn đến</div>
+                                </div>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Step 2: Location Search (Hidden initially) -->
+                    <div id="locationSearch" class="hidden">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-lg font-semibold text-gray-800">
+                                <i id="searchIcon" class="fas fa-map-pin text-green-600 mr-2"></i>
+                                <span id="searchTitle">Chọn điểm đón</span>
+                            </h3>
+                            <button id="backToModeBtn" class="text-gray-500 hover:text-gray-700">
+                                <i class="fas fa-arrow-left mr-2"></i>Quay lại
+                            </button>
+                        </div>
+                        
+                        <div class="space-y-3">
+                            <div class="relative">
+                                <input type="text" id="locationSearchInput" 
+                                       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                       placeholder="Nhập địa chỉ hoặc chọn từ danh sách">
+                                <button type="button" id="getCurrentLocationBtn" 
+                                        class="absolute right-3 top-1/2 transform -translate-y-1/2 text-blue-600 hover:text-blue-800">
+                                    <i class="fas fa-crosshairs"></i>
+                                </button>
+                            </div>
+                            <div id="locationSuggestions" class="hidden bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto z-10 relative">
+                                <!-- Suggestions will be populated here -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Selected Locations Display -->
+                    <div id="selectedLocations" class="hidden">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-4">
+                            <i class="fas fa-check-circle text-green-600 mr-2"></i>
+                            Địa điểm đã chọn
+                        </h3>
+                        <div class="grid md:grid-cols-2 gap-4">
+                            <!-- Selected Pickup -->
+                            <div id="selectedPickupDisplay" class="hidden bg-green-50 border border-green-200 rounded-lg p-4">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center space-x-3">
+                                        <i class="fas fa-map-pin text-green-600 text-xl"></i>
+                                        <div>
+                                            <div class="font-semibold text-green-800">Điểm đón</div>
+                                            <div id="selectedPickupName" class="text-sm text-gray-600"></div>
+                                        </div>
+                                    </div>
+                                    <button id="clearPickupBtn" class="text-red-500 hover:text-red-700">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Selected Dropoff -->
+                            <div id="selectedDropoffDisplay" class="hidden bg-red-50 border border-red-200 rounded-lg p-4">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center space-x-3">
+                                        <i class="fas fa-flag text-red-600 text-xl"></i>
+                                        <div>
+                                            <div class="font-semibold text-red-800">Điểm đến</div>
+                                            <div id="selectedDropoffName" class="text-sm text-gray-600"></div>
+                                        </div>
+                                    </div>
+                                    <button id="clearDropoffBtn" class="text-red-500 hover:text-red-700">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Confirm Button -->
+                        <div class="mt-4 text-center">
+                            <button id="confirmRouteBtn" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg transition-colors duration-200">
+                                <i class="fas fa-route mr-2"></i>
+                                Xác nhận và tính toán đường đi
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                    <!-- Popular Locations - Hanoi Focus -->
+                    <div class="mb-6">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-3">
+                            <i class="fas fa-star text-yellow-500 mr-2"></i>
+                            Địa điểm phổ biến ở Hà Nội
+                        </h3>
+                        
+                        <!-- Transportation -->
+                        <div class="mb-4">
+                            <h4 class="text-sm font-semibold text-gray-600 mb-2">🚌 Giao thông</h4>
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                <button class="popular-location p-2 text-sm bg-blue-50 hover:bg-blue-100 rounded border text-blue-700 transition-all duration-200 hover:scale-105" 
+                                        data-type="pickup" data-location="Sân bay Nội Bài">
+                                    ✈️ Sân bay Nội Bài
+                                </button>
+                                <button class="popular-location p-2 text-sm bg-blue-50 hover:bg-blue-100 rounded border text-blue-700 transition-all duration-200 hover:scale-105" 
+                                        data-type="both" data-location="Ga Hà Nội">
+                                    🚄 Ga Hà Nội
+                                </button>
+                                <button class="popular-location p-2 text-sm bg-blue-50 hover:bg-blue-100 rounded border text-blue-700 transition-all duration-200 hover:scale-105" 
+                                        data-type="both" data-location="Bến xe Mỹ Đình">
+                                    🚌 Bến xe Mỹ Đình
+                                </button>
+                                <button class="popular-location p-2 text-sm bg-blue-50 hover:bg-blue-100 rounded border text-blue-700 transition-all duration-200 hover:scale-105" 
+                                        data-type="both" data-location="Bến xe Giáp Bát">
+                                    🚌 Bến xe Giáp Bát
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Tourist Attractions -->
+                        <div class="mb-4">
+                            <h4 class="text-sm font-semibold text-gray-600 mb-2">🏛️ Du lịch & Văn hóa</h4>
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                <button class="popular-location p-2 text-sm bg-green-50 hover:bg-green-100 rounded border text-green-700 transition-all duration-200 hover:scale-105" 
+                                        data-type="both" data-location="Hồ Gươm">
+                                    🏛️ Hồ Gươm
+                                </button>
+                                <button class="popular-location p-2 text-sm bg-green-50 hover:bg-green-100 rounded border text-green-700 transition-all duration-200 hover:scale-105" 
+                                        data-type="both" data-location="Lăng Chủ tịch Hồ Chí Minh">
+                                    🏛️ Lăng Bác
+                                </button>
+                                <button class="popular-location p-2 text-sm bg-green-50 hover:bg-green-100 rounded border text-green-700 transition-all duration-200 hover:scale-105" 
+                                        data-type="both" data-location="Văn Miếu Quốc Tử Giám">
+                                    🎓 Văn Miếu
+                                </button>
+                                <button class="popular-location p-2 text-sm bg-green-50 hover:bg-green-100 rounded border text-green-700 transition-all duration-200 hover:scale-105" 
+                                        data-type="both" data-location="Chùa Một Cột">
+                                    🏯 Chùa Một Cột
+                                </button>
+                                <button class="popular-location p-2 text-sm bg-green-50 hover:bg-green-100 rounded border text-green-700 transition-all duration-200 hover:scale-105" 
+                                        data-type="both" data-location="Nhà hát Lớn Hà Nội">
+                                    🎭 Nhà hát Lớn
+                                </button>
+                                <button class="popular-location p-2 text-sm bg-green-50 hover:bg-green-100 rounded border text-green-700 transition-all duration-200 hover:scale-105" 
+                                        data-type="both" data-location="Phố cổ Hà Nội">
+                                    🏘️ Phố cổ
+                                </button>
+                                <button class="popular-location p-2 text-sm bg-green-50 hover:bg-green-100 rounded border text-green-700 transition-all duration-200 hover:scale-105" 
+                                        data-type="both" data-location="Hồ Tây">
+                                    🏞️ Hồ Tây
+                                </button>
+                                <button class="popular-location p-2 text-sm bg-green-50 hover:bg-green-100 rounded border text-green-700 transition-all duration-200 hover:scale-105" 
+                                        data-type="both" data-location="Chùa Trấn Quốc">
+                                    🏯 Chùa Trấn Quốc
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Shopping Centers -->
+                        <div class="mb-4">
+                            <h4 class="text-sm font-semibold text-gray-600 mb-2">🛍️ Mua sắm</h4>
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                <button class="popular-location p-2 text-sm bg-purple-50 hover:bg-purple-100 rounded border text-purple-700 transition-all duration-200 hover:scale-105" 
+                                        data-type="both" data-location="Trung tâm thương mại Vincom Center">
+                                    🏬 Vincom Center
+                                </button>
+                                <button class="popular-location p-2 text-sm bg-purple-50 hover:bg-purple-100 rounded border text-purple-700 transition-all duration-200 hover:scale-105" 
+                                        data-type="both" data-location="Trung tâm thương mại Royal City">
+                                    🏬 Royal City
+                                </button>
+                                <button class="popular-location p-2 text-sm bg-purple-50 hover:bg-purple-100 rounded border text-purple-700 transition-all duration-200 hover:scale-105" 
+                                        data-type="both" data-location="Trung tâm thương mại Times City">
+                                    🏬 Times City
+                                </button>
+                                <button class="popular-location p-2 text-sm bg-purple-50 hover:bg-purple-100 rounded border text-purple-700 transition-all duration-200 hover:scale-105" 
+                                        data-type="both" data-location="Chợ Đồng Xuân">
+                                    🏪 Chợ Đồng Xuân
+                                </button>
+                                <button class="popular-location p-2 text-sm bg-purple-50 hover:bg-purple-100 rounded border text-purple-700 transition-all duration-200 hover:scale-105" 
+                                        data-type="both" data-location="Big C Thăng Long">
+                                    🏪 Big C Thăng Long
+                                </button>
+                                <button class="popular-location p-2 text-sm bg-purple-50 hover:bg-purple-100 rounded border text-purple-700 transition-all duration-200 hover:scale-105" 
+                                        data-type="both" data-location="Trung tâm thương mại Lotte Center">
+                                    🏬 Lotte Center
+                                </button>
+                                <button class="popular-location p-2 text-sm bg-purple-50 hover:bg-purple-100 rounded border text-purple-700 transition-all duration-200 hover:scale-105" 
+                                        data-type="both" data-location="Chợ Hàng Da">
+                                    🏪 Chợ Hàng Da
+                                </button>
+                                <button class="popular-location p-2 text-sm bg-purple-50 hover:bg-purple-100 rounded border text-purple-700 transition-all duration-200 hover:scale-105" 
+                                        data-type="both" data-location="Trung tâm thương mại Aeon Mall">
+                                    🏬 Aeon Mall
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Universities -->
+                        <div class="mb-4">
+                            <h4 class="text-sm font-semibold text-gray-600 mb-2">🎓 Trường đại học</h4>
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                <button class="popular-location p-2 text-sm bg-orange-50 hover:bg-orange-100 rounded border text-orange-700 transition-all duration-200 hover:scale-105" 
+                                        data-type="both" data-location="Đại học Quốc gia Hà Nội">
+                                    🎓 ĐHQG Hà Nội
+                                </button>
+                                <button class="popular-location p-2 text-sm bg-orange-50 hover:bg-orange-100 rounded border text-orange-700 transition-all duration-200 hover:scale-105" 
+                                        data-type="both" data-location="Đại học Bách Khoa Hà Nội">
+                                    🎓 ĐH Bách Khoa
+                                </button>
+                                <button class="popular-location p-2 text-sm bg-orange-50 hover:bg-orange-100 rounded border text-orange-700 transition-all duration-200 hover:scale-105" 
+                                        data-type="both" data-location="Đại học Kinh tế Quốc dân">
+                                    🎓 ĐH Kinh tế QD
+                                </button>
+                                <button class="popular-location p-2 text-sm bg-orange-50 hover:bg-orange-100 rounded border text-orange-700 transition-all duration-200 hover:scale-105" 
+                                        data-type="both" data-location="Đại học Y Hà Nội">
+                                    🎓 ĐH Y Hà Nội
+                                </button>
+                                <button class="popular-location p-2 text-sm bg-orange-50 hover:bg-orange-100 rounded border text-orange-700 transition-all duration-200 hover:scale-105" 
+                                        data-type="both" data-location="Đại học Ngoại thương">
+                                    🎓 ĐH Ngoại thương
+                                </button>
+                                <button class="popular-location p-2 text-sm bg-orange-50 hover:bg-orange-100 rounded border text-orange-700 transition-all duration-200 hover:scale-105" 
+                                        data-type="both" data-location="Đại học Luật Hà Nội">
+                                    🎓 ĐH Luật HN
+                                </button>
+                                <button class="popular-location p-2 text-sm bg-orange-50 hover:bg-orange-100 rounded border text-orange-700 transition-all duration-200 hover:scale-105" 
+                                        data-type="both" data-location="Đại học Sư phạm Hà Nội">
+                                    🎓 ĐH Sư phạm
+                                </button>
+                                <button class="popular-location p-2 text-sm bg-orange-50 hover:bg-orange-100 rounded border text-orange-700 transition-all duration-200 hover:scale-105" 
+                                        data-type="both" data-location="Đại học Thương mại">
+                                    🎓 ĐH Thương mại
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Hospitals -->
+                        <div class="mb-4">
+                            <h4 class="text-sm font-semibold text-gray-600 mb-2">🏥 Bệnh viện</h4>
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                <button class="popular-location p-2 text-sm bg-red-50 hover:bg-red-100 rounded border text-red-700 transition-all duration-200 hover:scale-105" 
+                                        data-type="both" data-location="Bệnh viện Bạch Mai">
+                                    🏥 Bệnh viện Bạch Mai
+                                </button>
+                                <button class="popular-location p-2 text-sm bg-red-50 hover:bg-red-100 rounded border text-red-700 transition-all duration-200 hover:scale-105" 
+                                        data-type="both" data-location="Bệnh viện Việt Đức">
+                                    🏥 Bệnh viện Việt Đức
+                                </button>
+                                <button class="popular-location p-2 text-sm bg-red-50 hover:bg-red-100 rounded border text-red-700 transition-all duration-200 hover:scale-105" 
+                                        data-type="both" data-location="Bệnh viện K">
+                                    🏥 Bệnh viện K
+                                </button>
+                                <button class="popular-location p-2 text-sm bg-red-50 hover:bg-red-100 rounded border text-red-700 transition-all duration-200 hover:scale-105" 
+                                        data-type="both" data-location="Bệnh viện Tim Hà Nội">
+                                    🏥 Bệnh viện Tim
+                                </button>
+                                <button class="popular-location p-2 text-sm bg-red-50 hover:bg-red-100 rounded border text-red-700 transition-all duration-200 hover:scale-105" 
+                                        data-type="both" data-location="Bệnh viện Nhi Trung ương">
+                                    🏥 Bệnh viện Nhi TW
+                                </button>
+                                <button class="popular-location p-2 text-sm bg-red-50 hover:bg-red-100 rounded border text-red-700 transition-all duration-200 hover:scale-105" 
+                                        data-type="both" data-location="Bệnh viện Phụ sản Hà Nội">
+                                    🏥 Bệnh viện Phụ sản
+                                </button>
+                                <button class="popular-location p-2 text-sm bg-red-50 hover:bg-red-100 rounded border text-red-700 transition-all duration-200 hover:scale-105" 
+                                        data-type="both" data-location="Bệnh viện Đa khoa Quốc tế Vinmec">
+                                    🏥 Vinmec
+                                </button>
+                                <button class="popular-location p-2 text-sm bg-red-50 hover:bg-red-100 rounded border text-red-700 transition-all duration-200 hover:scale-105" 
+                                        data-type="both" data-location="Bệnh viện Đa khoa Quốc tế Thu Cúc">
+                                    🏥 Thu Cúc
+                                </button>
+                            </div>
+                        </div>
+                    
+                    <!-- City Selection -->
+                    <div class="mb-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <h4 class="text-sm font-semibold text-gray-700">Chọn thành phố:</h4>
+                            <button id="clearSavedData" class="text-xs text-red-600 hover:text-red-800 underline">
+                                🗑️ Xóa dữ liệu đã lưu
+                            </button>
+                        </div>
+                        <div class="flex space-x-2">
+                            <button class="city-filter px-3 py-1 text-sm bg-blue-100 text-blue-800 rounded-full hover:bg-blue-200 transition-all duration-200" 
+                                    data-city="all">
+                                🌏 Tất cả
+                            </button>
+                            <button class="city-filter px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200 transition-all duration-200" 
+                                    data-city="Hà Nội">
+                                🏛️ Hà Nội
+                            </button>
+                            <button class="city-filter px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200 transition-all duration-200" 
+                                    data-city="TP.HCM">
+                                🏙️ TP.HCM
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Quick Categories -->
+                    <div class="grid grid-cols-3 md:grid-cols-6 gap-2">
+                        <button class="category-filter p-2 text-xs bg-gray-50 hover:bg-gray-100 rounded border text-gray-700 transition-all duration-200" 
+                                data-category="shopping">
+                            🛍️ Mua sắm
+                        </button>
+                        <button class="category-filter p-2 text-xs bg-gray-50 hover:bg-gray-100 rounded border text-gray-700 transition-all duration-200" 
+                                data-category="education">
+                            🎓 Trường học
+                        </button>
+                        <button class="category-filter p-2 text-xs bg-gray-50 hover:bg-gray-100 rounded border text-gray-700 transition-all duration-200" 
+                                data-category="healthcare">
+                            🏥 Bệnh viện
+                        </button>
+                        <button class="category-filter p-2 text-xs bg-gray-50 hover:bg-gray-100 rounded border text-gray-700 transition-all duration-200" 
+                                data-category="tourism">
+                            🎭 Du lịch
+                        </button>
+                        <button class="category-filter p-2 text-xs bg-gray-50 hover:bg-gray-100 rounded border text-gray-700 transition-all duration-200" 
+                                data-category="hotel">
+                            🏨 Khách sạn
+                        </button>
+                        <button class="category-filter p-2 text-xs bg-gray-50 hover:bg-gray-100 rounded border text-gray-700 transition-all duration-200" 
+                                data-category="business">
+                            🏢 Văn phòng
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Map Container -->
+                <div class="mb-6">
+                    <div id="map" class="w-full h-96 rounded-lg border border-gray-300"></div>
+                    <div class="mt-2 text-sm text-gray-600 text-center">
+                        <i class="fas fa-info-circle mr-1"></i>
+                        Click trên bản đồ để chọn điểm đón/đến hoặc nhập địa chỉ vào ô tìm kiếm
+                    </div>
+                </div>
+
+                <!-- Trip Details (Hidden until confirmed) -->
+                <div id="tripDetails" class="hidden mb-6">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4">
+                        <i class="fas fa-route text-blue-600 mr-2"></i>
+                        Thông tin chuyến đi
+                    </h3>
+                    <div class="grid md:grid-cols-3 gap-4">
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <div class="flex items-center space-x-2">
+                                <i class="fas fa-route text-blue-600"></i>
+                                <span class="font-semibold">Khoảng cách</span>
+                                <span id="routeType" class="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full hidden">
+                                    <i class="fas fa-route mr-1"></i>Đường thực tế
+                                </span>
+                            </div>
+                            <p id="distance" class="text-lg font-bold text-gray-800 mt-1">-- km</p>
+                        </div>
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <div class="flex items-center space-x-2">
+                                <i class="fas fa-clock text-green-600"></i>
+                                <span class="font-semibold">Thời gian dự kiến</span>
+                            </div>
+                            <p id="duration" class="text-lg font-bold text-gray-800 mt-1">-- phút</p>
+                        </div>
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <div class="flex items-center space-x-2">
+                                <i class="fas fa-money-bill-wave text-yellow-600"></i>
+                                <span class="font-semibold">Ước tính giá</span>
+                            </div>
+                            <p id="estimatedPrice" class="text-lg font-bold text-gray-800 mt-1">-- VNĐ</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Customer Information -->
+                <div class="border-t pt-6">
+                    <h3 class="text-xl font-semibold text-gray-800 mb-4">
+                        <i class="fas fa-user text-blue-600 mr-2"></i>
+                        Thông tin khách hàng
+                    </h3>
+                    <div class="grid md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">Họ và tên</label>
+                            <input type="text" id="customerName" 
+                                   class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                   placeholder="Nhập họ và tên">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">Số điện thoại</label>
+                            <input type="tel" id="customerPhone" 
+                                   class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                   placeholder="Nhập số điện thoại">
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Ghi chú (tùy chọn)</label>
+                        <textarea id="notes" rows="3" 
+                                  class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                  placeholder="Ghi chú thêm cho tài xế..."></textarea>
+                    </div>
+                </div>
+
+                <!-- Booking Button -->
+                <div class="mt-6 text-center">
+                    <button id="bookTaxi" 
+                            class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-8 rounded-lg text-lg transition duration-300 transform hover:scale-105 shadow-lg">
+                        <i class="fas fa-car mr-2"></i>
+                        Đặt xe ngay
+                    </button>
+                </div>
+            </div>
+
+            <!-- Booking Status -->
+            <div id="bookingStatus" class="hidden bg-white rounded-lg shadow-xl p-6">
+                <div class="text-center">
+                    <div id="statusIcon" class="text-6xl mb-4">
+                        <!-- Status icon will be updated here -->
+                    </div>
+                    <h3 id="statusTitle" class="text-2xl font-bold mb-2">
+                        <!-- Status title will be updated here -->
+                    </h3>
+                    <p id="statusMessage" class="text-gray-600 mb-4">
+                        <!-- Status message will be updated here -->
+                    </p>
+                    <div id="bookingDetails" class="hidden bg-gray-50 p-4 rounded-lg text-left">
+                        <!-- Booking details will be shown here -->
+                    </div>
+                    <button id="newBooking" class="mt-4 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-lg">
+                        Đặt xe mới
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-gray-800 text-white py-8 mt-12">
+        <div class="container mx-auto px-4 text-center">
+            <div class="flex items-center justify-center space-x-3 mb-4">
+                <i class="fas fa-taxi text-2xl"></i>
+                <h3 class="text-xl font-bold">RadioCar Taxi</h3>
+            </div>
+            <p class="text-gray-400 mb-4">Dịch vụ taxi uy tín, an toàn và tiện lợi - Hoàn toàn miễn phí</p>
+            <div class="flex justify-center space-x-6 text-sm">
+                <span><i class="fas fa-phone mr-2"></i>1900-1234</span>
+                <span><i class="fas fa-envelope mr-2"></i>support@radiocar.com</span>
+                <span><i class="fas fa-clock mr-2"></i>24/7</span>
+                <span><i class="fas fa-gift mr-2"></i>100% Free</span>
+            </div>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
