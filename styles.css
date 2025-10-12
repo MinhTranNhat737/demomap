@@ -1,4 +1,4 @@
-/* Custom styles for Taxi Booking Demo */
+axi Booking Demo */
 
 /* Map container styling */
 #map {
@@ -405,13 +405,268 @@
     background: #94a3b8;
 }
 
+/* Map Control Buttons */
+.map-control-btn {
+    transition: all 0.2s ease;
+    font-weight: 500;
+}
+
+.map-control-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    filter: brightness(1.1);
+}
+
+.map-control-btn:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.leaflet-control-custom {
+    animation: slideInRight 0.3s ease-out;
+}
+
+@keyframes slideInRight {
+    from {
+        opacity: 0;
+        transform: translateX(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* Responsive map controls */
+@media (max-width: 640px) {
+    .map-control-btn span {
+        display: none;
+    }
+    
+    .map-control-btn {
+        padding: 8px !important;
+        justify-content: center !important;
+    }
+    
+    .leaflet-control-custom {
+        padding: 3px !important;
+    }
+}
+
 /* Modal styles */
 #locationModal {
     backdrop-filter: blur(4px);
 }
 
+/* Location Selection Modal - Compact top position */
+#locationSelectionModal {
+    animation: slideInDown 0.3s ease-out;
+}
+
+#locationSelectionModal .bg-white {
+    animation: slideInDown 0.3s ease-out;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideInDown {
+    from {
+        opacity: 0;
+        transform: translateY(-30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Responsive modal positioning */
+@media (max-width: 768px) {
+    #locationSelectionModal {
+        top: 2rem;
+        left: 1rem;
+        right: 1rem;
+        transform: none;
+    }
+    
+    #locationSelectionModal .bg-white {
+        width: 100%;
+        max-width: none;
+    }
+}
+
+@media (max-width: 480px) {
+    #locationSelectionModal {
+        top: 1rem;
+        left: 0.5rem;
+        right: 0.5rem;
+    }
+    
+    #locationSelectionModal .bg-white {
+        width: 100%;
+    }
+}
+
 .location-item {
     transition: all 0.2s ease;
+}
+
+/* Traffic Marker Styles */
+.traffic-marker {
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        transform: scale(1);
+        opacity: 1;
+    }
+    50% {
+        transform: scale(1.1);
+        opacity: 0.8;
+    }
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+/* Traffic Test Results */
+#trafficTestResults {
+    animation: slideInUp 0.3s ease-out;
+}
+
+@keyframes slideInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Popular Locations Toggle */
+#togglePopularLocations {
+    transition: all 0.2s ease;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+#togglePopularLocations:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+#popularLocationsContent {
+    transition: all 0.3s ease;
+}
+
+#popularLocationsContent.hidden {
+    opacity: 0;
+    max-height: 0;
+    overflow: hidden;
+    margin: 0;
+    padding: 0;
+}
+
+#popularLocationsContent:not(.hidden) {
+    opacity: 1;
+    max-height: 2000px;
+}
+
+/* Map z-index fix */
+#map {
+    z-index: 1 !important;
+}
+
+.leaflet-container {
+    z-index: 1 !important;
+}
+
+.leaflet-control-container {
+    z-index: 10 !important;
+}
+
+/* Trip Details Overlay */
+#tripDetails {
+    backdrop-filter: blur(12px);
+    animation: slideInDown 0.4s ease-out;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4), 0 0 0 2px rgba(0, 0, 0, 0.8);
+    border: 3px solid #000000 !important;
+    z-index: 9999 !important;
+    background: rgba(255, 255, 255, 0.98) !important;
+}
+
+#tripDetails:not(.hidden) {
+    animation: slideInDown 0.4s ease-out;
+    z-index: 9999 !important;
+}
+
+#tripDetails:hover {
+    box-shadow: 0 32px 64px -12px rgba(0, 0, 0, 0.3);
+    transform: translateY(-2px);
+    transition: all 0.3s ease;
+}
+
+#closeTripDetails {
+    transition: all 0.2s ease;
+}
+
+#closeTripDetails:hover {
+    transform: scale(1.1);
+}
+
+@keyframes slideInDown {
+    from {
+        opacity: 0;
+        transform: translateY(-30px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* Traffic Test Locations */
+.traffic-test-location {
+    transition: all 0.2s ease;
+    font-weight: 500;
+}
+
+.traffic-test-location:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.traffic-test-location:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Responsive overlay */
+@media (max-width: 768px) {
+    #tripDetails {
+        top: 4px;
+        left: 4px;
+        right: 4px;
+        max-height: 80vh;
+        padding: 4px;
+    }
+    
+    #tripDetails h3 {
+        font-size: 1rem;
+    }
+    
+    #tripDetails .grid {
+        gap: 8px;
+    }
 }
 
 .location-item:hover {

@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Xác nhận chuyến đi - RadioCar</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body class="bg-gray-50">
+    <!-- Header -->
+    <header class="bg-blue-600 text-white shadow-lg">
+        <div class="container mx-auto px-4 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <i class="fas fa-taxi text-2xl"></i>
+                    <h1 class="text-2xl font-bold">RadioCar Taxi</h1>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <button id="backToBooking" class="bg-white text-blue-600 px-4 py-2 rounded-lg hover:bg-gray-100 transition-colors">
+                        <i class="fas fa-arrow-left mr-2"></i>Quay lại đặt xe
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="container mx-auto px-4 py-6">
+        <div class="grid lg:grid-cols-3 gap-6">
+            <!-- Trip Details Panel -->
+            <div class="lg:col-span-1">
+                <div class="bg-white rounded-lg shadow-xl p-6 mb-6">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-6">
+                        <i class="fas fa-route text-blue-600 mr-2"></i>
+                        Thông tin chuyến đi
+                    </h2>
+                    
+                    <!-- Current Conditions Alert -->
+                    <div id="conditionsAlert" class="mb-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
+                        <div class="flex items-center space-x-2 mb-3">
+                            <i class="fas fa-info-circle text-blue-600"></i>
+                            <span class="text-sm font-semibold text-gray-800">Điều kiện hiện tại</span>
+                        </div>
+                        <div id="conditionsInfo" class="grid grid-cols-2 gap-2 text-xs">
+                            <div class="bg-white p-2 rounded flex items-center space-x-1">
+                                <span id="rushHourIcon">⏰</span>
+                                <span id="rushHourStatus" class="text-gray-700">Đang kiểm tra...</span>
+                            </div>
+                            <div class="bg-white p-2 rounded flex items-center space-x-1">
+                                <span id="trafficIcon">🚦</span>
+                                <span id="trafficStatus" class="text-gray-700">Đang kiểm tra...</span>
+                            </div>
+                            <div class="bg-white p-2 rounded flex items-center space-x-1">
+                                <span id="weatherIcon">🌤️</span>
+                                <span id="weatherStatus" class="text-gray-700">Đang kiểm tra...</span>
+                            </div>
+                            <div class="bg-white p-2 rounded flex items-center space-x-1">
+                                <span id="locationIcon">📍</span>
+                                <span id="locationStatus" class="text-gray-700">Đang kiểm tra...</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Route Information -->
+                    <div class="grid grid-cols-1 gap-4 mb-6">
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <div class="flex items-center space-x-2 mb-2">
+                                <i class="fas fa-route text-blue-600"></i>
+                                <span class="font-semibold">Khoảng cách</span>
+                                <span id="routeType" class="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full hidden">
+                                    <i class="fas fa-route mr-1"></i>Đường thực tế
+                                </span>
+                            </div>
+                            <p id="distance" class="text-lg font-bold text-gray-800">-- km</p>
+                        </div>
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <div class="flex items-center space-x-2 mb-2">
+                                <i class="fas fa-clock text-green-600"></i>
+                                <span class="font-semibold">Thời gian dự kiến</span>
+                            </div>
+                            <p id="duration" class="text-lg font-bold text-gray-800">-- phút</p>
+                        </div>
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <div class="flex items-center space-x-2 mb-2">
+                                <i class="fas fa-money-bill-wave text-yellow-600"></i>
+                                <span class="font-semibold">Ước tính giá</span>
+                            </div>
+                            <p id="estimatedPrice" class="text-lg font-bold text-gray-800">-- VNĐ</p>
+                        </div>
+                    </div>
+
+                    <!-- Traffic Congestion Details -->
+                    <div id="trafficCongestionDetails" class="hidden mb-6">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-4">
+                            <i class="fas fa-exclamation-triangle text-red-600 mr-2"></i>
+                            Cảnh báo tắc đường
+                        </h3>
+                        <div id="congestionInfo" class="space-y-3">
+                            <!-- Dynamic congestion info will be inserted here -->
+                        </div>
+                    </div>
+
+                    <!-- Pricing Breakdown -->
+                    <div id="pricingBreakdown" class="hidden mb-6">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-4">
+                            <i class="fas fa-calculator text-green-600 mr-2"></i>
+                            Chi tiết giá
+                        </h3>
+                        <div id="pricingDetails" class="space-y-2">
+                            <!-- Dynamic pricing breakdown will be inserted here -->
+                        </div>
+                    </div>
+
+                    <!-- Customer Information -->
+                    <div class="border-t pt-6">
+                        <h3 class="text-xl font-semibold text-gray-800 mb-4">
+                            <i class="fas fa-user text-blue-600 mr-2"></i>
+                            Thông tin khách hàng
+                        </h3>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">Họ và tên</label>
+                                <input type="text" id="customerName" 
+                                       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                       placeholder="Nhập họ và tên">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">Số điện thoại</label>
+                                <input type="tel" id="customerPhone" 
+                                       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                       placeholder="Nhập số điện thoại">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">Ghi chú (tùy chọn)</label>
+                                <textarea id="notes" rows="3" 
+                                          class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                          placeholder="Ghi chú thêm cho tài xế..."></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Booking Button -->
+                    <div class="mt-6 text-center">
+                        <button id="confirmBooking" 
+                                class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-8 rounded-lg text-lg transition duration-300 transform hover:scale-105 shadow-lg">
+                            <i class="fas fa-car mr-2"></i>
+                            Xác nhận đặt xe
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Map Panel -->
+            <div class="lg:col-span-2">
+                <div class="bg-white rounded-lg shadow-xl p-6">
+                    <h3 class="text-xl font-semibold text-gray-800 mb-4">
+                        <i class="fas fa-map text-green-600 mr-2"></i>
+                        Bản đồ đường đi
+                    </h3>
+                    
+                    <!-- Map Container -->
+                    <div class="relative">
+                        <div id="confirmationMap" class="w-full h-[600px] rounded-lg border border-gray-300 shadow-lg"></div>
+                        
+                        <!-- Traffic Info Overlay -->
+                        <div id="trafficInfoOverlay" class="hidden absolute top-4 left-4 bg-white/95 backdrop-blur-md rounded-lg shadow-lg border-2 border-black p-4 max-w-sm z-10">
+                            <h4 class="font-semibold text-gray-800 mb-2">
+                                <i class="fas fa-traffic-light text-red-600 mr-2"></i>
+                                Thông tin giao thông
+                            </h4>
+                            <div id="trafficInfoContent" class="text-sm space-y-1">
+                                <!-- Dynamic traffic info will be inserted here -->
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4 text-sm text-gray-600">
+                        <i class="fas fa-info-circle mr-1"></i>
+                        Đường màu đỏ: Tắc đường | Đường màu xanh: Thông thoáng
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Notification Container -->
+    <div id="notificationContainer" class="fixed top-4 right-4 z-50"></div>
+
+    <script src="confirmation.js"></script>
+</body>
+</html>

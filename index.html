@@ -141,10 +141,18 @@
 
                     <!-- Popular Locations - Hanoi Focus -->
                     <div class="mb-6">
-                        <h3 class="text-lg font-semibold text-gray-800 mb-3">
-                            <i class="fas fa-star text-yellow-500 mr-2"></i>
-                            Địa điểm phổ biến ở Hà Nội
-                        </h3>
+                        <div class="flex items-center justify-between mb-3">
+                            <h3 class="text-lg font-semibold text-gray-800">
+                                <i class="fas fa-star text-yellow-500 mr-2"></i>
+                                Địa điểm phổ biến ở Hà Nội
+                            </h3>
+                            <button id="togglePopularLocations" class="text-sm bg-gray-100 hover:bg-gray-200 text-gray-600 px-3 py-1 rounded-full transition-colors duration-200 flex items-center space-x-1">
+                                <span id="popularLocationsToggleText">Ẩn</span>
+                                <i id="popularLocationsToggleIcon" class="fas fa-eye-slash text-xs"></i>
+                            </button>
+                        </div>
+                        
+                        <div id="popularLocationsContent">
                         
                         <!-- Transportation -->
                         <div class="mb-4">
@@ -324,6 +332,8 @@
                                 </button>
                             </div>
                         </div>
+                        </div> <!-- End popularLocationsContent -->
+                    </div>
                     
                     <!-- City Selection -->
                     <div class="mb-4">
@@ -379,20 +389,47 @@
                 </div>
 
                 <!-- Map Container -->
-                <div class="mb-6">
-                    <div id="map" class="w-full h-96 rounded-lg border border-gray-300"></div>
-                    <div class="mt-2 text-sm text-gray-600 text-center">
-                        <i class="fas fa-info-circle mr-1"></i>
-                        Click trên bản đồ để chọn điểm đón/đến hoặc nhập địa chỉ vào ô tìm kiếm
+                <div class="mb-6 relative z-0">
+                    <div id="map" class="w-full h-[600px] rounded-lg border border-gray-300 shadow-lg relative z-0"></div>
+                    
+                    <!-- Trip Details Overlay (Hidden until confirmed) -->
+                    <div id="tripDetails" class="hidden absolute top-6 left-6 right-6 bg-white/98 backdrop-blur-md rounded-xl shadow-2xl border-2 border-black z-[9999] max-h-96 overflow-y-auto p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-semibold text-gray-800">
+                            <i class="fas fa-route text-blue-600 mr-2"></i>
+                            Thông tin chuyến đi
+                        </h3>
+                        <button id="closeTripDetails" class="text-gray-400 hover:text-gray-600 transition-colors">
+                            <i class="fas fa-times text-xl"></i>
+                        </button>
                     </div>
-                </div>
-
-                <!-- Trip Details (Hidden until confirmed) -->
-                <div id="tripDetails" class="hidden mb-6">
-                    <h3 class="text-lg font-semibold text-gray-800 mb-4">
-                        <i class="fas fa-route text-blue-600 mr-2"></i>
-                        Thông tin chuyến đi
-                    </h3>
+                    
+                    <!-- Current Conditions Alert -->
+                    <div id="conditionsAlert" class="mb-4 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
+                        <div class="flex items-center space-x-2">
+                            <i class="fas fa-info-circle text-blue-600"></i>
+                            <span class="text-sm font-semibold text-gray-800">Điều kiện hiện tại</span>
+                        </div>
+                        <div id="conditionsInfo" class="mt-2 grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                            <div class="bg-white p-2 rounded flex items-center space-x-1">
+                                <span id="rushHourIcon">⏰</span>
+                                <span id="rushHourStatus" class="text-gray-700">Đang kiểm tra...</span>
+                            </div>
+                            <div class="bg-white p-2 rounded flex items-center space-x-1">
+                                <span id="trafficIcon">🚦</span>
+                                <span id="trafficStatus" class="text-gray-700">Đang kiểm tra...</span>
+                            </div>
+                            <div class="bg-white p-2 rounded flex items-center space-x-1">
+                                <span id="weatherIcon">🌤️</span>
+                                <span id="weatherStatus" class="text-gray-700">Đang kiểm tra...</span>
+                            </div>
+                            <div class="bg-white p-2 rounded flex items-center space-x-1">
+                                <span id="locationIcon">📍</span>
+                                <span id="locationStatus" class="text-gray-700">Đang kiểm tra...</span>
+                            </div>
+                        </div>
+                    </div>
+                    
                     <div class="grid md:grid-cols-3 gap-4">
                         <div class="bg-gray-50 p-4 rounded-lg">
                             <div class="flex items-center space-x-2">
@@ -419,7 +456,14 @@
                             <p id="estimatedPrice" class="text-lg font-bold text-gray-800 mt-1">-- VNĐ</p>
                         </div>
                     </div>
-                </div>
+                    </div> <!-- End tripDetails overlay -->
+                    
+                    <!-- Map Info -->
+                    <div class="mt-2 text-sm text-gray-600 text-center">
+                        <i class="fas fa-info-circle mr-1"></i>
+                        Click trên bản đồ để chọn điểm đón/đến hoặc nhập địa chỉ vào ô tìm kiếm
+                    </div>
+                </div> <!-- End Map Container -->
 
                 <!-- Customer Information -->
                 <div class="border-t pt-6">
@@ -456,6 +500,10 @@
                         <i class="fas fa-car mr-2"></i>
                         Đặt xe ngay
                     </button>
+                    <button onclick="testNavigation()" 
+                            class="mt-2 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg">
+                        Test Navigation
+                    </button>
                 </div>
             </div>
 
@@ -481,6 +529,213 @@
             </div>
         </div>
     </main>
+
+    <!-- API Settings Button (Floating) -->
+    <button id="apiSettingsBtn" class="fixed bottom-6 right-6 bg-blue-600 hover:bg-blue-700 text-white p-4 rounded-full shadow-lg transition-all duration-300 hover:scale-110 z-50" title="Cấu hình API">
+        <i class="fas fa-cog text-xl"></i>
+    </button>
+
+    <!-- API Settings Modal -->
+    <div id="apiSettingsModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div class="sticky top-0 bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-6 rounded-t-lg">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-3">
+                        <i class="fas fa-key text-2xl"></i>
+                        <h3 class="text-2xl font-bold">Cấu hình API - Dữ liệu thực</h3>
+                    </div>
+                    <button id="closeApiSettings" class="text-white hover:text-gray-200 text-2xl">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="p-6 space-y-6">
+                <!-- Current Status -->
+                <div class="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border border-blue-200">
+                    <div class="flex items-center space-x-2 mb-3">
+                        <i class="fas fa-info-circle text-blue-600"></i>
+                        <span class="font-semibold text-gray-800">Trạng thái kết nối</span>
+                    </div>
+                    <div class="grid md:grid-cols-2 gap-3">
+                        <div class="bg-white p-3 rounded flex items-center justify-between">
+                            <span class="text-sm">🌤️ Thời tiết</span>
+                            <span id="weatherApiStatus" class="text-xs px-2 py-1 rounded bg-gray-200 text-gray-700">Chưa cấu hình</span>
+                        </div>
+                        <div class="bg-white p-3 rounded flex items-center justify-between">
+                            <span class="text-sm">🚦 Tắc đường</span>
+                            <span id="trafficApiStatus" class="text-xs px-2 py-1 rounded bg-gray-200 text-gray-700">Chưa cấu hình</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Weather API Configuration -->
+                <div class="border border-gray-200 rounded-lg p-5">
+                    <div class="flex items-center space-x-3 mb-4">
+                        <div class="bg-blue-100 p-2 rounded">
+                            <i class="fas fa-cloud-sun text-blue-600 text-xl"></i>
+                        </div>
+                        <div>
+                            <h4 class="font-bold text-gray-800">WeatherAPI.com</h4>
+                            <p class="text-xs text-gray-500">Dữ liệu thời tiết thời gian thực</p>
+                        </div>
+                    </div>
+                    
+                    <div class="space-y-3">
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">API Key</label>
+                            <input type="text" id="weatherApiKey" 
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                   placeholder="Nhập API key của bạn...">
+                        </div>
+                        
+                        <div class="bg-yellow-50 p-3 rounded border border-yellow-200">
+                            <p class="text-xs text-gray-700 mb-2">
+                                <i class="fas fa-lightbulb text-yellow-600 mr-1"></i>
+                                <strong>Cách lấy API key miễn phí (30 giây):</strong>
+                            </p>
+                            <ol class="text-xs text-gray-600 space-y-1 ml-4 list-decimal">
+                                <li>Truy cập: <a href="https://openweathermap.org/api" target="_blank" class="text-blue-600 hover:underline">openweathermap.org/api</a></li>
+                                <li>Nhấn "Sign Up" → Điền email và tạo tài khoản</li>
+                                <li>Vào "API keys" → Copy key (kích hoạt sau ~10 phút)</li>
+                                <li>Miễn phí: 1,000 requests/ngày, 60/phút</li>
+                            </ol>
+                        </div>
+                        
+                        <button id="testWeatherApi" class="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-lg transition-colors">
+                            <i class="fas fa-flask mr-2"></i>Kiểm tra API
+                        </button>
+                        <button id="debugApiKey" class="w-full mt-2 bg-red-500 hover:bg-red-600 text-white py-2 rounded-lg transition-colors">
+                            <i class="fas fa-bug mr-2"></i>Debug API Key
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Traffic API Configuration -->
+                <div class="border border-gray-200 rounded-lg p-5">
+                    <div class="flex items-center space-x-3 mb-4">
+                        <div class="bg-red-100 p-2 rounded">
+                            <i class="fas fa-traffic-light text-red-600 text-xl"></i>
+                        </div>
+                        <div>
+                            <h4 class="font-bold text-gray-800">TomTom Traffic API</h4>
+                            <p class="text-xs text-gray-500">Dữ liệu tắc đường thời gian thực</p>
+                        </div>
+                    </div>
+                    
+                    <div class="space-y-3">
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">API Key</label>
+                            <input type="text" id="trafficApiKey" 
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                   placeholder="Nhập API key của bạn...">
+                        </div>
+                        
+                        <!-- Test Coordinates Input -->
+                        <div class="bg-blue-50 p-3 rounded border border-blue-200">
+                            <h5 class="text-sm font-semibold text-blue-800 mb-2 flex items-center">
+                                <i class="fas fa-map-marker-alt mr-1"></i>
+                                Test Coordinates:
+                            </h5>
+                            <div class="grid grid-cols-2 gap-2 text-xs">
+                                <div>
+                                    <label class="block text-blue-700 mb-1">Latitude:</label>
+                                    <input type="number" id="testLat" step="0.000001" 
+                                           class="w-full px-2 py-1 border border-blue-200 rounded text-xs"
+                                           placeholder="10.8231" value="10.8231">
+                                </div>
+                                <div>
+                                    <label class="block text-blue-700 mb-1">Longitude:</label>
+                                    <input type="number" id="testLng" step="0.000001" 
+                                           class="w-full px-2 py-1 border border-blue-200 rounded text-xs"
+                                           placeholder="106.6297" value="106.6297">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-yellow-50 p-3 rounded border border-yellow-200">
+                            <p class="text-xs text-gray-700 mb-2">
+                                <i class="fas fa-lightbulb text-yellow-600 mr-1"></i>
+                                <strong>Cách lấy API key miễn phí (1 phút):</strong>
+                            </p>
+                            <ol class="text-xs text-gray-600 space-y-1 ml-4 list-decimal">
+                                <li>Truy cập: <a href="https://developer.tomtom.com/user/register" target="_blank" class="text-blue-600 hover:underline">developer.tomtom.com</a></li>
+                                <li>Đăng ký tài khoản miễn phí</li>
+                                <li>Vào Dashboard → Tạo app mới → Copy API key</li>
+                                <li>Miễn phí: 2,500 requests/ngày</li>
+                            </ol>
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-2">
+                            <button id="testApiKey" class="bg-gray-500 hover:bg-gray-600 text-white py-2 rounded-lg transition-colors">
+                                <i class="fas fa-key mr-2"></i>Test Key
+                            </button>
+                            <button id="testTrafficApi" class="bg-red-500 hover:bg-red-600 text-white py-2 rounded-lg transition-colors">
+                                <i class="fas fa-flask mr-2"></i>Test Traffic
+                            </button>
+                        </div>
+                        
+                        <!-- Test Results Display -->
+                        <div id="trafficTestResults" class="hidden bg-gray-50 p-4 rounded border">
+                            <h6 class="text-sm font-semibold text-gray-800 mb-3 flex items-center">
+                                <i class="fas fa-chart-bar text-green-600 mr-2"></i>
+                                Traffic Analysis Results:
+                            </h6>
+                            <div id="trafficResultsContent" class="text-sm space-y-2"></div>
+                        </div>
+                        
+                        <!-- Hanoi Traffic Test Locations -->
+                        <div class="bg-red-50 p-4 rounded border border-red-200">
+                            <h5 class="text-sm font-semibold text-red-800 mb-3 flex items-center">
+                                <i class="fas fa-map-marker-alt text-red-600 mr-2"></i>
+                                Test các đường tắc điển hình Hà Nội:
+                            </h5>
+                            <div class="grid grid-cols-1 gap-2 text-xs">
+                                <button class="traffic-test-location bg-red-100 hover:bg-red-200 text-red-800 p-2 rounded border text-left transition-colors" 
+                                        data-lat="21.0285" data-lng="105.8542" data-name="Hồ Gươm">
+                                    🏛️ Hồ Gươm (Trung tâm Hà Nội)
+                                </button>
+                                <button class="traffic-test-location bg-red-100 hover:bg-red-200 text-red-800 p-2 rounded border text-left transition-colors" 
+                                        data-lat="21.0134" data-lng="105.8471" data-name="Cầu Giấy">
+                                    🚦 Cầu Giấy (Đường tắc thường xuyên)
+                                </button>
+                                <button class="traffic-test-location bg-red-100 hover:bg-red-200 text-red-800 p-2 rounded border text-left transition-colors" 
+                                        data-lat="21.0245" data-lng="105.8412" data-name="Kim Mã">
+                                    🚗 Kim Mã (Đường vành đai)
+                                </button>
+                                <button class="traffic-test-location bg-red-100 hover:bg-red-200 text-red-800 p-2 rounded border text-left transition-colors" 
+                                        data-lat="21.0364" data-lng="105.7930" data-name="Sân bay Nội Bài">
+                                    ✈️ Sân bay Nội Bài (Đường cao tốc)
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="flex space-x-3 pt-4 border-t">
+                    <button id="saveApiSettings" class="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg font-semibold transition-colors">
+                        <i class="fas fa-save mr-2"></i>Lưu cấu hình
+                    </button>
+                    <button id="clearApiSettings" class="px-6 bg-gray-500 hover:bg-gray-600 text-white py-3 rounded-lg transition-colors">
+                        <i class="fas fa-trash mr-2"></i>Xóa
+                    </button>
+                </div>
+
+                <!-- Info Note -->
+                <div class="bg-gray-50 p-4 rounded border border-gray-200">
+                    <p class="text-xs text-gray-600">
+                        <i class="fas fa-shield-alt text-green-600 mr-1"></i>
+                        <strong>Bảo mật:</strong> API keys được lưu trữ cục bộ trên trình duyệt của bạn và không được gửi đến bất kỳ máy chủ nào khác ngoài các dịch vụ API chính thức.
+                    </p>
+                    <p class="text-xs text-gray-600 mt-2">
+                        <i class="fas fa-info-circle text-blue-600 mr-1"></i>
+                        <strong>Lưu ý:</strong> Nếu không cấu hình API, hệ thống sẽ sử dụng dữ liệu mô phỏng để demo.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Footer -->
     <footer class="bg-gray-800 text-white py-8 mt-12">

@@ -3,6 +3,12 @@
 
 class FreeTaxiBookingApp {
     constructor() {
+        // Prevent multiple instances
+        if (window.taxiAppInstance) {
+            console.log('App instance already exists, returning existing instance');
+            return window.taxiAppInstance;
+        }
+        
         this.map = null;
         this.pickupMarker = null;
         this.dropoffMarker = null;
@@ -15,8 +21,75 @@ class FreeTaxiBookingApp {
         this.currentSelectionMode = null; // 'pickup' or 'dropoff'
         this.isRouteCalculated = false;
         
+        // API configuration
+        this.weatherApiKey = '8a4755cdd81b4bdcb9973512251210';
+        this.trafficApiKey = null;
+        this.trafficData = null;
+        this.hasRestoredState = false; // Flag to prevent multiple restorations
+        this.saveStateTimeout = null; // For debouncing save operations
+        this.loadApiKeys();
+        
         // Initialize the application
         this.init();
+        
+        // Store instance globally
+        window.taxiAppInstance = this;
+    }
+    
+    loadApiKeys() {
+        try {
+            this.weatherApiKey = localStorage.getItem('weatherApiKey');
+            this.trafficApiKey = localStorage.getItem('trafficApiKey') || 'bQrbmvGHDhZA0DUXLOFxLRnYNNrbqgEq';
+            console.log('API keys loaded from storage');
+            console.log('Weather API:', this.weatherApiKey ? 'Configured' : 'Not configured');
+            console.log('Traffic API:', this.trafficApiKey ? 'Configured' : 'Not configured');
+            console.log('TomTom API Key loaded:', this.trafficApiKey);
+        
+        // Auto-test the API key if available
+        if (this.trafficApiKey) {
+            setTimeout(() => {
+                this.testApiKeyValidity(this.trafficApiKey).then(result => {
+                    if (result.valid) {
+                        console.log('✅ TomTom API Key is valid and ready to use!');
+                    } else {
+                        console.log('❌ TomTom API Key validation failed:', result.message);
+                    }
+                });
+            }, 2000);
+        }
+        } catch (error) {
+            console.error('Failed to load API keys:', error);
+        }
+    }
+    
+    saveApiKeys(weatherKey, trafficKey) {
+        try {
+            if (weatherKey) {
+                localStorage.setItem('weatherApiKey', weatherKey);
+                this.weatherApiKey = weatherKey;
+            }
+            if (trafficKey) {
+                localStorage.setItem('trafficApiKey', trafficKey);
+                this.trafficApiKey = trafficKey;
+            }
+            console.log('API keys saved successfully');
+        } catch (error) {
+            console.error('Failed to save API keys:', error);
+        }
+    }
+    
+    clearApiKeys() {
+        try {
+            localStorage.removeItem('weatherApiKey');
+            localStorage.removeItem('trafficApiKey');
+            this.weatherApiKey = null;
+            this.trafficApiKey = null;
+            this.weatherData = null;
+            this.trafficData = null;
+            console.log('API keys cleared');
+        } catch (error) {
+            console.error('Failed to clear API keys:', error);
+        }
     }
 
     init() {
@@ -24,13 +97,13 @@ class FreeTaxiBookingApp {
         this.setupLocationDatabase();
         this.initializeMap();
         this.bindEvents();
-        this.restoreState(); // Restore saved state
+        this.clearOldState(); // Clear old state on page load
         console.log('App initialized successfully!');
     }
 
     initializeMap() {
-        // Initialize OpenStreetMap centered on Ho Chi Minh City
-        this.map = L.map('map').setView([10.8231, 106.6297], 13);
+        // Initialize OpenStreetMap centered on Hanoi (21.0285, 105.8542)
+        this.map = L.map('map').setView([21.0285, 105.8542], 13);
 
         // Add OpenStreetMap tiles (completely free)
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -44,6 +117,131 @@ class FreeTaxiBookingApp {
 
         // Add initial location markers
         this.addLocationMarkers();
+        
+        // Add map controls for clearing selections
+        this.addMapControls();
+    }
+    
+    addMapControls() {
+        // Create custom control for clearing map selections
+        const clearControlDiv = L.Control.extend({
+            options: {
+                position: 'topright'
+            },
+            
+            onAdd: (map) => {
+                const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-control-custom');
+                
+                container.style.backgroundColor = 'white';
+                container.style.padding = '5px';
+                container.style.cursor = 'pointer';
+                container.style.borderRadius = '4px';
+                container.style.boxShadow = '0 2px 6px rgba(0,0,0,0.3)';
+                
+                container.innerHTML = `
+                    <div style="display: flex; flex-direction: column; gap: 5px;">
+                        <button id="clearPickupMapBtn" class="map-control-btn" style="background: #10b981; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; display: flex; align-items: center; gap: 5px; white-space: nowrap;" title="Xóa điểm đón">
+                            <i class="fas fa-times"></i>
+                            <span>Xóa đón</span>
+                        </button>
+                        <button id="clearDropoffMapBtn" class="map-control-btn" style="background: #ef4444; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; display: flex; align-items: center; gap: 5px; white-space: nowrap;" title="Xóa điểm đến">
+                            <i class="fas fa-times"></i>
+                            <span>Xóa đến</span>
+                        </button>
+                        <button id="clearAllMapBtn" class="map-control-btn" style="background: #6b7280; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; display: flex; align-items: center; gap: 5px; white-space: nowrap;" title="Xóa tất cả">
+                            <i class="fas fa-trash-alt"></i>
+                            <span>Xóa tất cả</span>
+                        </button>
+                    </div>
+                `;
+                
+                // Prevent map click events on control
+                L.DomEvent.disableClickPropagation(container);
+                
+                return container;
+            }
+        });
+        
+        this.map.addControl(new clearControlDiv());
+        
+        // Bind events after control is added to DOM
+        setTimeout(() => {
+            this.bindMapControlEvents();
+        }, 100);
+    }
+    
+    bindMapControlEvents() {
+        const clearPickupBtn = document.getElementById('clearPickupMapBtn');
+        const clearDropoffBtn = document.getElementById('clearDropoffMapBtn');
+        const clearAllBtn = document.getElementById('clearAllMapBtn');
+        
+        if (clearPickupBtn) {
+            clearPickupBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.clearPickupFromMap();
+            });
+        }
+        
+        if (clearDropoffBtn) {
+            clearDropoffBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.clearDropoffFromMap();
+            });
+        }
+        
+        if (clearAllBtn) {
+            clearAllBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.clearAllFromMap();
+            });
+        }
+        
+        console.log('Map controls bound successfully');
+    }
+    
+    clearPickupFromMap() {
+        if (!this.pickupLocation) {
+            this.showNotification('⚠️ Chưa có điểm đón để xóa', 'warning');
+            return;
+        }
+        
+        console.log('🗑️ Clearing pickup location from map');
+        this.clearPickupLocation();
+        this.updateSelectedLocationsDisplay();
+        this.showNotification('✅ Đã xóa điểm đón', 'success');
+    }
+    
+    clearDropoffFromMap() {
+        if (!this.dropoffLocation) {
+            this.showNotification('⚠️ Chưa có điểm đến để xóa', 'warning');
+            return;
+        }
+        
+        console.log('🗑️ Clearing dropoff location from map');
+        this.clearDropoffLocation();
+        this.updateSelectedLocationsDisplay();
+        this.showNotification('✅ Đã xóa điểm đến', 'success');
+    }
+    
+    clearAllFromMap() {
+        if (!this.pickupLocation && !this.dropoffLocation) {
+            this.showNotification('⚠️ Chưa có điểm nào để xóa', 'warning');
+            return;
+        }
+        
+        if (confirm('Bạn có chắc muốn xóa tất cả điểm đón và điểm đến?')) {
+            console.log('🗑️ Clearing all locations from map');
+            
+            if (this.pickupLocation) {
+                this.clearPickupLocation();
+            }
+            if (this.dropoffLocation) {
+                this.clearDropoffLocation();
+            }
+            
+            this.updateSelectedLocationsDisplay();
+            this.showNotification('✅ Đã xóa tất cả điểm', 'success');
+        }
     }
 
     setupLocationDatabase() {
@@ -504,17 +702,22 @@ class FreeTaxiBookingApp {
             existingModal.remove();
         }
 
-        // Create modal
+        // Create modal - positioned at very top of screen to avoid covering form
         const modal = document.createElement('div');
         modal.id = 'locationSelectionModal';
-        modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4';
+        modal.className = 'fixed top-4 left-1/2 transform -translate-x-1/2 z-50';
         modal.innerHTML = `
-            <div class="bg-white rounded-lg shadow-xl max-w-md w-full">
-                <div class="p-6">
-                    <div class="text-center mb-6">
-                        <div class="text-4xl mb-3">📍</div>
-                        <h3 class="text-xl font-semibold text-gray-800 mb-2">Chọn loại địa điểm</h3>
-                        <p class="text-sm text-gray-600">Bạn muốn đặt "${location.name}" làm gì?</p>
+            <div class="bg-white rounded-lg shadow-xl max-w-sm w-80">
+                <div class="p-4">
+                    <div class="text-center mb-4">
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="text-3xl">📍</div>
+                            <button class="cancel-btn text-gray-400 hover:text-gray-600 text-xl">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <h3 class="text-lg font-semibold text-gray-800 mb-2">Chọn loại địa điểm</h3>
+                        <p class="text-xs text-gray-600 leading-relaxed">Bạn muốn đặt "${location.name}" làm gì?</p>
                     </div>
                     
                     <div class="space-y-3">
@@ -713,6 +916,11 @@ class FreeTaxiBookingApp {
                 // Draw actual route on map
                 this.drawActualRoute(routeData.coordinates);
                 
+                // Display pricing breakdown
+                setTimeout(() => {
+                    this.displayPricingBreakdown();
+                }, 100);
+                
                 console.log(`Route calculated: ${routeData.distance} km, ${routeData.duration} minutes`);
             } else {
                 throw new Error('All routing services failed');
@@ -804,6 +1012,11 @@ class FreeTaxiBookingApp {
 
         // Draw straight line route
         this.drawRoute();
+        
+        // Display pricing breakdown
+        setTimeout(() => {
+            this.displayPricingBreakdown();
+        }, 100);
     }
 
     drawActualRoute(coordinates) {
@@ -849,14 +1062,611 @@ class FreeTaxiBookingApp {
         const basePrice = 12000; // 12,000 VNĐ base fare
         const pricePerKm = 15000; // 15,000 VNĐ per kilometer
         
-        // Add traffic factor (city center is more expensive)
+        let totalFactor = 1.0;
+        this.pricingFactors = []; // Store factors for display
+        
+        // 1. Traffic factor based on location (city center)
         let trafficFactor = 1.0;
         if (this.pickupLocation && this.dropoffLocation) {
             const isCityCenter = this.isCityCenter(this.pickupLocation) || this.isCityCenter(this.dropoffLocation);
-            if (isCityCenter) trafficFactor = 1.2;
+            if (isCityCenter) {
+                trafficFactor = 1.2;
+                this.pricingFactors.push({
+                    name: 'Phụ phí khu vực trung tâm',
+                    factor: 1.2,
+                    icon: '🏙️'
+                });
+            }
         }
         
-        return Math.round((basePrice + (distance * pricePerKm)) * trafficFactor);
+        // 2. Rush hour factor (giờ cao điểm)
+        const rushHourFactor = this.getRushHourFactor();
+        if (rushHourFactor > 1.0) {
+            this.pricingFactors.push({
+                name: 'Phụ phí giờ cao điểm',
+                factor: rushHourFactor,
+                icon: '⏰'
+            });
+        }
+        
+        // 3. Weather factor (if available)
+        const weatherFactor = this.getWeatherFactor();
+        if (weatherFactor > 1.0) {
+            this.pricingFactors.push({
+                name: 'Phụ phí thời tiết xấu',
+                factor: weatherFactor,
+                icon: '🌧️'
+            });
+        }
+        
+        // 4. Traffic congestion factor (simulated based on time and location)
+        const congestionFactor = this.getTrafficCongestionFactor();
+        if (congestionFactor > 1.0) {
+            this.pricingFactors.push({
+                name: 'Phụ phí tắc đường',
+                factor: congestionFactor,
+                icon: '🚦'
+            });
+        }
+        
+        // Calculate total factor
+        totalFactor = trafficFactor * rushHourFactor * weatherFactor * congestionFactor;
+        
+        const finalPrice = Math.round((basePrice + (distance * pricePerKm)) * totalFactor);
+        
+        // Store pricing breakdown for display
+        this.pricingBreakdown = {
+            basePrice: basePrice,
+            distance: distance,
+            pricePerKm: pricePerKm,
+            distancePrice: distance * pricePerKm,
+            totalFactor: totalFactor,
+            finalPrice: finalPrice
+        };
+        
+        return finalPrice;
+    }
+    
+    getRushHourFactor() {
+        const now = new Date();
+        const hour = now.getHours();
+        const day = now.getDay(); // 0 = Sunday, 6 = Saturday
+        
+        // Weekend - no rush hour
+        if (day === 0 || day === 6) {
+            return 1.0;
+        }
+        
+        // Morning rush hour: 6:30 AM - 9:00 AM
+        if (hour >= 6.5 && hour < 9) {
+            return 1.3;
+        }
+        
+        // Evening rush hour: 5:00 PM - 8:00 PM
+        if (hour >= 17 && hour < 20) {
+            return 1.3;
+        }
+        
+        // Lunch time: 11:30 AM - 1:30 PM
+        if (hour >= 11.5 && hour < 13.5) {
+            return 1.15;
+        }
+        
+        return 1.0;
+    }
+    
+    getWeatherFactor() {
+        // Use stored weather data if available
+        if (this.weatherData) {
+            const weather = this.weatherData.weather[0].main.toLowerCase();
+            const rain = this.weatherData.rain ? this.weatherData.rain['1h'] || 0 : 0;
+            
+            // Heavy rain or storm
+            if (weather.includes('storm') || weather.includes('thunderstorm')) {
+                return 1.5;
+            }
+            
+            // Rain
+            if (weather.includes('rain') || rain > 0) {
+                if (rain > 5) { // Heavy rain (>5mm/hour)
+                    return 1.4;
+                }
+                return 1.25; // Light to moderate rain
+            }
+            
+            // Snow (rare in Vietnam but included for completeness)
+            if (weather.includes('snow')) {
+                return 1.4;
+            }
+            
+            // Fog or mist
+            if (weather.includes('fog') || weather.includes('mist')) {
+                return 1.2;
+            }
+        }
+        
+        return 1.0;
+    }
+    
+    getTrafficCongestionFactor() {
+        // Use real traffic data if available
+        if (this.trafficData && this.trafficData.flowSegmentData) {
+            const flow = this.trafficData.flowSegmentData;
+            
+            // TomTom returns currentSpeed and freeFlowSpeed
+            const currentSpeed = flow.currentSpeed;
+            const freeFlowSpeed = flow.freeFlowSpeed;
+            const confidence = flow.confidence || 0.5;
+            
+            // Calculate congestion based on speed ratio
+            const speedRatio = currentSpeed / freeFlowSpeed;
+            
+            console.log(`🚦 Real traffic data - Current: ${currentSpeed} km/h, Free flow: ${freeFlowSpeed} km/h, Ratio: ${speedRatio.toFixed(2)}`);
+            
+            let congestionFactor = 1.0;
+            
+            if (speedRatio < 0.3) {
+                // Extremely slow (< 30% of free flow speed)
+                congestionFactor = 1.5;
+            } else if (speedRatio < 0.5) {
+                // Heavy congestion (30-50% of free flow speed)
+                congestionFactor = 1.35;
+            } else if (speedRatio < 0.7) {
+                // Moderate congestion (50-70% of free flow speed)
+                congestionFactor = 1.2;
+            } else if (speedRatio < 0.85) {
+                // Light congestion (70-85% of free flow speed)
+                congestionFactor = 1.1;
+            }
+            
+            // Adjust based on confidence level
+            const finalFactor = 1.0 + ((congestionFactor - 1.0) * confidence);
+            
+            console.log(`📊 Traffic congestion factor: ${finalFactor.toFixed(2)}x (confidence: ${(confidence * 100).toFixed(0)}%)`);
+            return finalFactor;
+        }
+        
+        // Fallback to simulated data based on location and time
+        console.log('⚠️ Using simulated traffic data');
+        const now = new Date();
+        const hour = now.getHours();
+        const day = now.getDay();
+        
+        // Check if both locations are in high-traffic areas
+        const pickupHighTraffic = this.isHighTrafficArea(this.pickupLocation);
+        const dropoffHighTraffic = this.isHighTrafficArea(this.dropoffLocation);
+        
+        let congestionLevel = 1.0;
+        
+        // Base congestion on location
+        if (pickupHighTraffic && dropoffHighTraffic) {
+            congestionLevel = 1.15;
+        } else if (pickupHighTraffic || dropoffHighTraffic) {
+            congestionLevel = 1.1;
+        }
+        
+        // Increase during peak hours
+        if (day >= 1 && day <= 5) { // Weekdays
+            if ((hour >= 7 && hour < 9) || (hour >= 17 && hour < 19)) {
+                congestionLevel *= 1.2;
+            }
+        }
+        
+        return Math.min(congestionLevel, 1.4); // Cap at 1.4x
+    }
+    
+    isHighTrafficArea(location) {
+        if (!location) return false;
+        
+        // High traffic districts in Hanoi
+        const hanoiHighTraffic = ['Hoàn Kiếm', 'Ba Đình', 'Đống Đa', 'Hai Bà Trưng'];
+        // High traffic districts in HCMC
+        const hcmcHighTraffic = ['Quận 1', 'Quận 3', 'Quận 5', 'Quận 10', 'Bình Thạnh'];
+        
+        if (location.city === 'Hà Nội') {
+            return hanoiHighTraffic.includes(location.district);
+        } else if (location.city === 'TP.HCM') {
+            return hcmcHighTraffic.includes(location.district);
+        }
+        
+        return false;
+    }
+    
+    async fetchWeatherData(lat, lng) {
+        try {
+            // Check if API key is configured
+            if (!this.weatherApiKey) {
+                console.log('⚠️ No weather API key configured - using simulated data');
+                this.simulateWeatherData();
+                return;
+            }
+            
+            console.log('🌤️ Fetching real weather data from WeatherAPI.com...');
+            const url = `https://api.weatherapi.com/v1/current.json?key=${this.weatherApiKey}&q=${lat},${lng}&aqi=no`;
+            
+            const response = await fetch(url);
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.log('WeatherAPI Error Response:', errorText);
+                
+                if (response.status === 401) {
+                    throw new Error('API key không hợp lệ hoặc hết hạn. Vui lòng kiểm tra lại!');
+                } else if (response.status === 403) {
+                    throw new Error('API key không có quyền truy cập WeatherAPI.com');
+                } else if (response.status === 429) {
+                    throw new Error('Đã vượt quá giới hạn số lượt gọi API. Vui lòng thử lại sau!');
+                }
+                throw new Error(`WeatherAPI error: ${response.status} - ${errorText}`);
+            }
+            
+            const data = await response.json();
+            console.log('✅ Weather data fetched successfully:', data);
+            
+            this.weatherData = {
+                temperature: Math.round(data.current.temp_c),
+                condition: data.current.condition.text,
+                humidity: data.current.humidity,
+                windSpeed: Math.round(data.current.wind_kph)
+            };
+            
+            // Show success notification
+            this.showNotification('✅ Đã lấy dữ liệu thời tiết thực!', 'success');
+            
+            // Update UI with weather info
+            this.displayWeatherInfo();
+            
+        } catch (error) {
+            console.error('❌ Failed to fetch weather data:', error);
+            this.showNotification(`❌ Lỗi thời tiết: ${error.message}`, 'error');
+            
+            // Debug: Test API key directly
+            this.debugApiKey();
+            
+            // Use simulated data as fallback
+            this.simulateWeatherData();
+        }
+    }
+    
+    async fetchTrafficData(lat, lng) {
+        try {
+            // Check if API key is configured
+            if (!this.trafficApiKey) {
+                console.log('⚠️ No traffic API key configured - using simulated data');
+                this.trafficData = null;
+                return;
+            }
+            
+            console.log('🚦 Fetching real traffic data from TomTom...');
+            // TomTom Traffic Flow API
+            const url = `https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json?key=${this.trafficApiKey}&point=${lat},${lng}`;
+            
+            const response = await fetch(url);
+            if (!response.ok) {
+                if (response.status === 403) {
+                    throw new Error('API key không hợp lệ hoặc đã hết hạn');
+                } else if (response.status === 429) {
+                    throw new Error('Đã vượt quá giới hạn số lượt gọi API');
+                }
+                throw new Error(`Traffic API error: ${response.status}`);
+            }
+            
+            this.trafficData = await response.json();
+            console.log('✅ Traffic data fetched successfully:', this.trafficData);
+            
+            // Show success notification
+            this.showNotification('✅ Đã lấy dữ liệu tắc đường thực!', 'success');
+            
+        } catch (error) {
+            console.error('❌ Failed to fetch traffic data:', error);
+            this.showNotification(`❌ Lỗi tắc đường: ${error.message}`, 'warning');
+            this.trafficData = null;
+        }
+    }
+    
+    async debugApiKey() {
+        console.log('🔍 Debugging API key...');
+        console.log('Current API key:', this.weatherApiKey);
+        console.log('API key length:', this.weatherApiKey?.length);
+        
+        if (!this.weatherApiKey) {
+            console.log('❌ No API key configured');
+            this.showNotification('❌ Không có API key được cấu hình', 'error');
+            return;
+        }
+        
+        this.showNotification('🔍 Đang debug API key...', 'info');
+        
+        try {
+            const testUrl = `https://api.weatherapi.com/v1/current.json?key=${this.weatherApiKey}&q=21.0285,105.8542&aqi=no`;
+            console.log('🔍 Testing URL:', testUrl);
+            
+            const response = await fetch(testUrl);
+            console.log('🔍 Response status:', response.status);
+            console.log('🔍 Response ok:', response.ok);
+            
+            const responseText = await response.text();
+            console.log('🔍 Response text:', responseText);
+            
+            if (!response.ok) {
+                console.log('❌ API call failed');
+                this.showNotification(`❌ API call failed: ${response.status} - ${responseText}`, 'error');
+            } else {
+                console.log('✅ API call successful');
+                const data = JSON.parse(responseText);
+                this.showNotification(`✅ API key hoạt động! Nhiệt độ: ${data.current.temp_c}°C`, 'success');
+            }
+        } catch (error) {
+            console.log('❌ Debug test failed:', error);
+            this.showNotification(`❌ Debug test failed: ${error.message}`, 'error');
+        }
+    }
+
+    simulateWeatherData() {
+        // Simulate random weather conditions for demo
+        const conditions = [
+            { main: 'Clear', description: 'Trời quang', icon: '☀️', rain: 0 },
+            { main: 'Clouds', description: 'Nhiều mây', icon: '☁️', rain: 0 },
+            { main: 'Rain', description: 'Mưa nhẹ', icon: '🌧️', rain: 3 },
+            { main: 'Rain', description: 'Mưa vừa', icon: '🌧️', rain: 7 },
+            { main: 'Thunderstorm', description: 'Mưa dông', icon: '⛈️', rain: 10 }
+        ];
+        
+        const randomCondition = conditions[Math.floor(Math.random() * conditions.length)];
+        
+        this.weatherData = {
+            weather: [randomCondition],
+            main: {
+                temp: 25 + Math.random() * 10,
+                humidity: 60 + Math.random() * 30
+            },
+            rain: randomCondition.rain > 0 ? { '1h': randomCondition.rain } : undefined
+        };
+        
+        console.log('Simulated weather data:', this.weatherData);
+        this.displayWeatherInfo();
+    }
+    
+    displayWeatherInfo() {
+        // Add weather info to trip details if it exists
+        const tripDetails = document.getElementById('tripDetails');
+        if (!tripDetails || tripDetails.classList.contains('hidden')) {
+            return;
+        }
+        
+        // Remove existing weather info
+        const existingWeather = document.getElementById('weatherInfo');
+        if (existingWeather) {
+            existingWeather.remove();
+        }
+        
+        // Create weather info element
+        const weatherInfo = document.createElement('div');
+        weatherInfo.id = 'weatherInfo';
+        weatherInfo.className = 'mt-4 p-4 bg-blue-50 rounded-lg';
+        
+        const weather = this.weatherData.weather[0];
+        const weatherIcon = this.getWeatherIcon(weather.main);
+        
+        weatherInfo.innerHTML = `
+            <div class="flex items-center space-x-3">
+                <span class="text-3xl">${weatherIcon}</span>
+                <div>
+                    <div class="font-semibold text-gray-800">Thời tiết hiện tại</div>
+                    <div class="text-sm text-gray-600">
+                        ${weather.description} • ${Math.round(this.weatherData.main.temp)}°C
+                        ${this.weatherData.rain ? ` • Lượng mưa: ${this.weatherData.rain['1h']}mm/h` : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        const priceSection = document.querySelector('#tripDetails .grid');
+        if (priceSection) {
+            priceSection.parentNode.insertBefore(weatherInfo, priceSection.nextSibling);
+        }
+    }
+    
+    getWeatherIcon(weatherMain) {
+        const icons = {
+            'Clear': '☀️',
+            'Clouds': '☁️',
+            'Rain': '🌧️',
+            'Drizzle': '🌦️',
+            'Thunderstorm': '⛈️',
+            'Snow': '❄️',
+            'Mist': '🌫️',
+            'Fog': '🌫️',
+            'Haze': '🌫️'
+        };
+        return icons[weatherMain] || '🌤️';
+    }
+    
+    goToConfirmation() {
+        console.log('🚀 goToConfirmation called');
+        console.log('Pickup location:', this.pickupLocation);
+        console.log('Dropoff location:', this.dropoffLocation);
+        
+        // Check if both locations are selected
+        if (!this.pickupLocation || !this.dropoffLocation) {
+            console.log('❌ Missing locations, showing warning');
+            this.showNotification('⚠️ Vui lòng chọn điểm đón và điểm đến trước', 'warning');
+            return;
+        }
+        
+        // Pass trip data via URL parameters to confirmation page
+        const params = new URLSearchParams({
+            pickup: encodeURIComponent(JSON.stringify(this.pickupLocation)),
+            dropoff: encodeURIComponent(JSON.stringify(this.dropoffLocation))
+        });
+        
+        const confirmationUrl = `confirmation.html?${params.toString()}`;
+        console.log('🔗 Navigating to:', confirmationUrl);
+        
+        // Navigate to confirmation page
+        window.location.href = confirmationUrl;
+    }
+
+
+    displayPricingBreakdown() {
+        // Remove existing pricing breakdown if any
+        const existingBreakdown = document.getElementById('pricingBreakdown');
+        if (existingBreakdown) {
+            existingBreakdown.remove();
+        }
+        
+        if (!this.pricingBreakdown) {
+            return;
+        }
+        
+        // Update current conditions display
+        this.updateConditionsDisplay();
+        
+        // Create pricing breakdown element
+        const breakdown = document.createElement('div');
+        breakdown.id = 'pricingBreakdown';
+        breakdown.className = 'mt-4 p-4 bg-yellow-50 rounded-lg border border-yellow-200';
+        
+        let factorsHTML = '';
+        if (this.pricingFactors && this.pricingFactors.length > 0) {
+            factorsHTML = `
+                <div class="mt-3 pt-3 border-t border-yellow-200">
+                    <div class="font-semibold text-gray-700 mb-2">Các phụ phí áp dụng:</div>
+                    <div class="space-y-2">
+                        ${this.pricingFactors.map(factor => `
+                            <div class="flex items-center justify-between text-sm">
+                                <span class="flex items-center space-x-2">
+                                    <span class="text-lg">${factor.icon}</span>
+                                    <span class="text-gray-700">${factor.name}</span>
+                                </span>
+                                <span class="font-semibold text-orange-600">+${Math.round((factor.factor - 1) * 100)}%</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+        
+        breakdown.innerHTML = `
+            <div class="flex items-start space-x-3">
+                <span class="text-2xl">💰</span>
+                <div class="flex-1">
+                    <div class="font-semibold text-gray-800 mb-2">Chi tiết giá cước</div>
+                    
+                    <div class="space-y-2 text-sm">
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Giá khởi điểm:</span>
+                            <span class="font-medium">${this.pricingBreakdown.basePrice.toLocaleString()} VNĐ</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Khoảng cách (${this.pricingBreakdown.distance.toFixed(1)} km × ${this.pricingBreakdown.pricePerKm.toLocaleString()} VNĐ/km):</span>
+                            <span class="font-medium">${Math.round(this.pricingBreakdown.distancePrice).toLocaleString()} VNĐ</span>
+                        </div>
+                        ${factorsHTML}
+                        <div class="flex justify-between pt-3 border-t border-yellow-300">
+                            <span class="font-semibold text-gray-800">Tổng cộng:</span>
+                            <span class="text-lg font-bold text-green-600">${this.pricingBreakdown.finalPrice.toLocaleString()} VNĐ</span>
+                        </div>
+                        ${this.pricingBreakdown.totalFactor > 1.0 ? `
+                            <div class="text-xs text-gray-500 italic text-center">
+                                * Giá đã tăng ${Math.round((this.pricingBreakdown.totalFactor - 1) * 100)}% so với giá cơ bản
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Insert after trip details
+        const tripDetailsGrid = document.querySelector('#tripDetails .grid');
+        if (tripDetailsGrid) {
+            tripDetailsGrid.parentNode.insertBefore(breakdown, tripDetailsGrid.nextSibling);
+        }
+    }
+    
+    updateConditionsDisplay() {
+        // Update rush hour status
+        const rushHourFactor = this.getRushHourFactor();
+        const rushHourStatus = document.getElementById('rushHourStatus');
+        const rushHourIcon = document.getElementById('rushHourIcon');
+        if (rushHourStatus) {
+            if (rushHourFactor > 1.2) {
+                rushHourStatus.textContent = 'Giờ cao điểm';
+                rushHourStatus.className = 'text-red-600 font-semibold';
+                rushHourIcon.textContent = '🔴';
+            } else if (rushHourFactor > 1.0) {
+                rushHourStatus.textContent = 'Giờ bận';
+                rushHourStatus.className = 'text-orange-600 font-semibold';
+                rushHourIcon.textContent = '🟡';
+            } else {
+                rushHourStatus.textContent = 'Bình thường';
+                rushHourStatus.className = 'text-green-600';
+                rushHourIcon.textContent = '🟢';
+            }
+        }
+        
+        // Update traffic status
+        const congestionFactor = this.getTrafficCongestionFactor();
+        const trafficStatus = document.getElementById('trafficStatus');
+        const trafficIcon = document.getElementById('trafficIcon');
+        if (trafficStatus) {
+            if (congestionFactor > 1.3) {
+                trafficStatus.textContent = 'Tắc nghiêm trọng';
+                trafficStatus.className = 'text-red-600 font-semibold';
+                trafficIcon.textContent = '🔴';
+            } else if (congestionFactor > 1.15) {
+                trafficStatus.textContent = 'Tắc vừa phải';
+                trafficStatus.className = 'text-orange-600 font-semibold';
+                trafficIcon.textContent = '🟡';
+            } else if (congestionFactor > 1.0) {
+                trafficStatus.textContent = 'Có chút tắc';
+                trafficStatus.className = 'text-yellow-600';
+                trafficIcon.textContent = '🟡';
+            } else {
+                trafficStatus.textContent = 'Thông thoáng';
+                trafficStatus.className = 'text-green-600';
+                trafficIcon.textContent = '🟢';
+            }
+        }
+        
+        // Update weather status
+        const weatherFactor = this.getWeatherFactor();
+        const weatherStatus = document.getElementById('weatherStatus');
+        const weatherIcon = document.getElementById('weatherIcon');
+        if (weatherStatus && this.weatherData) {
+            const weather = this.weatherData.weather[0].main;
+            if (weatherFactor > 1.4) {
+                weatherStatus.textContent = 'Mưa to/bão';
+                weatherStatus.className = 'text-red-600 font-semibold';
+                weatherIcon.textContent = '⛈️';
+            } else if (weatherFactor > 1.2) {
+                weatherStatus.textContent = 'Mưa/thời tiết xấu';
+                weatherStatus.className = 'text-orange-600 font-semibold';
+                weatherIcon.textContent = '🌧️';
+            } else {
+                weatherStatus.textContent = 'Thời tiết tốt';
+                weatherStatus.className = 'text-green-600';
+                weatherIcon.textContent = this.getWeatherIcon(weather);
+            }
+        } else if (weatherStatus) {
+            weatherStatus.textContent = 'Chưa có dữ liệu';
+            weatherStatus.className = 'text-gray-500';
+        }
+        
+        // Update location status
+        const locationStatus = document.getElementById('locationStatus');
+        const locationIcon = document.getElementById('locationIcon');
+        if (locationStatus && this.pickupLocation && this.dropoffLocation) {
+            const isCityCenter = this.isCityCenter(this.pickupLocation) || this.isCityCenter(this.dropoffLocation);
+            if (isCityCenter) {
+                locationStatus.textContent = 'Khu trung tâm';
+                locationStatus.className = 'text-orange-600 font-semibold';
+                locationIcon.textContent = '🏙️';
+            } else {
+                locationStatus.textContent = 'Khu ngoại ô';
+                locationStatus.className = 'text-green-600';
+                locationIcon.textContent = '🏡';
+            }
+        }
     }
 
     isCityCenter(location) {
@@ -904,6 +1714,15 @@ class FreeTaxiBookingApp {
         
         // New UI event handlers
         this.bindNewUIEvents();
+        
+        // Bind popular locations toggle
+        this.bindPopularLocationsToggle();
+        
+        // Bind trip details close button
+        this.bindTripDetailsClose();
+        
+        // Bind traffic test locations
+        this.bindTrafficTestLocations();
         
         // Location search input events
         const locationSearchInput = document.getElementById('locationSearchInput');
@@ -993,24 +1812,24 @@ class FreeTaxiBookingApp {
         const bookTaxiBtn = document.getElementById('bookTaxi');
         if (bookTaxiBtn) {
             bookTaxiBtn.addEventListener('click', () => {
-                console.log('Book taxi clicked');
-                this.handleBooking();
+                console.log('🚗 Book taxi button clicked');
+                this.goToConfirmation();
             });
-            console.log('Book taxi button event bound');
+            console.log('✅ Book taxi button event bound');
         } else {
-            console.error('Book taxi button not found!');
+            console.error('❌ Book taxi button not found!');
         }
 
         // New booking button
         const newBookingBtn = document.getElementById('newBooking');
         if (newBookingBtn) {
             newBookingBtn.addEventListener('click', () => {
-                console.log('New booking clicked');
-                this.resetBooking();
+                console.log('🔄 New booking button clicked');
+                this.goToConfirmation();
             });
-            console.log('New booking button event bound');
+            console.log('✅ New booking button event bound');
         } else {
-            console.error('New booking button not found!');
+            console.error('❌ New booking button not found!');
         }
 
         // Clear saved data button
@@ -1036,7 +1855,660 @@ class FreeTaxiBookingApp {
             }
         });
         
+        // API Settings Modal events
+        this.bindApiSettingsEvents();
+        
         console.log('All events bound successfully!');
+    }
+    
+    bindApiSettingsEvents() {
+        console.log('Binding API settings events...');
+        
+        // Open API settings modal
+        const apiSettingsBtn = document.getElementById('apiSettingsBtn');
+        const apiSettingsModal = document.getElementById('apiSettingsModal');
+        const closeApiSettings = document.getElementById('closeApiSettings');
+        
+        if (apiSettingsBtn) {
+            apiSettingsBtn.addEventListener('click', () => {
+                console.log('Opening API settings modal');
+                this.openApiSettingsModal();
+            });
+        }
+        
+        // Close modal
+        if (closeApiSettings) {
+            closeApiSettings.addEventListener('click', () => {
+                apiSettingsModal.classList.add('hidden');
+            });
+        }
+        
+        // Close when clicking outside
+        if (apiSettingsModal) {
+            apiSettingsModal.addEventListener('click', (e) => {
+                if (e.target === apiSettingsModal) {
+                    apiSettingsModal.classList.add('hidden');
+                }
+            });
+        }
+        
+        // Save API keys
+        const saveApiSettings = document.getElementById('saveApiSettings');
+        if (saveApiSettings) {
+            saveApiSettings.addEventListener('click', () => {
+                this.saveApiKeysFromModal();
+            });
+        }
+        
+        // Clear API keys
+        const clearApiSettings = document.getElementById('clearApiSettings');
+        if (clearApiSettings) {
+            clearApiSettings.addEventListener('click', () => {
+                if (confirm('Bạn có chắc muốn xóa tất cả API keys?')) {
+                    this.clearApiKeysFromModal();
+                }
+            });
+        }
+        
+        // Test weather API
+        const testWeatherApi = document.getElementById('testWeatherApi');
+        if (testWeatherApi) {
+            testWeatherApi.addEventListener('click', () => {
+                this.testWeatherApi();
+            });
+        }
+        
+        const debugApiKey = document.getElementById('debugApiKey');
+        if (debugApiKey) {
+            debugApiKey.addEventListener('click', () => {
+                this.debugApiKey();
+            });
+        }
+        
+        // Test API key validity
+        const testApiKey = document.getElementById('testApiKey');
+        if (testApiKey) {
+            testApiKey.addEventListener('click', () => {
+                this.testApiKeyOnly();
+            });
+        }
+        
+        // Test traffic API
+        const testTrafficApi = document.getElementById('testTrafficApi');
+        if (testTrafficApi) {
+            testTrafficApi.addEventListener('click', () => {
+                this.testTrafficApi();
+            });
+        }
+        
+        console.log('API settings events bound successfully!');
+    }
+    
+    openApiSettingsModal() {
+        const modal = document.getElementById('apiSettingsModal');
+        const weatherApiKeyInput = document.getElementById('weatherApiKey');
+        const trafficApiKeyInput = document.getElementById('trafficApiKey');
+        
+        // Load current API keys
+        if (weatherApiKeyInput) {
+            weatherApiKeyInput.value = this.weatherApiKey || '';
+        }
+        if (trafficApiKeyInput) {
+            trafficApiKeyInput.value = this.trafficApiKey || 'bQrbmvGHDhZA0DUXLOFxLRnYNNrbqgEq';
+        }
+        
+        // Update status displays
+        this.updateApiStatusDisplay();
+        
+        // Show modal
+        modal.classList.remove('hidden');
+    }
+    
+    updateApiStatusDisplay() {
+        const weatherStatus = document.getElementById('weatherApiStatus');
+        const trafficStatus = document.getElementById('trafficApiStatus');
+        
+        if (weatherStatus) {
+            if (this.weatherApiKey) {
+                weatherStatus.textContent = 'Đã cấu hình ✓';
+                weatherStatus.className = 'text-xs px-2 py-1 rounded bg-green-100 text-green-700';
+            } else {
+                weatherStatus.textContent = 'Chưa cấu hình';
+                weatherStatus.className = 'text-xs px-2 py-1 rounded bg-gray-200 text-gray-700';
+            }
+        }
+        
+        if (trafficStatus) {
+            if (this.trafficApiKey) {
+                trafficStatus.textContent = 'Đã cấu hình ✓';
+                trafficStatus.className = 'text-xs px-2 py-1 rounded bg-green-100 text-green-700';
+            } else {
+                trafficStatus.textContent = 'Chưa cấu hình';
+                trafficStatus.className = 'text-xs px-2 py-1 rounded bg-gray-200 text-gray-700';
+            }
+        }
+    }
+    
+    saveApiKeysFromModal() {
+        const weatherApiKeyInput = document.getElementById('weatherApiKey');
+        const trafficApiKeyInput = document.getElementById('trafficApiKey');
+        
+        const weatherKey = weatherApiKeyInput.value.trim();
+        const trafficKey = trafficApiKeyInput.value.trim();
+        
+        if (!weatherKey && !trafficKey) {
+            alert('Vui lòng nhập ít nhất một API key!');
+            return;
+        }
+        
+        this.saveApiKeys(weatherKey, trafficKey);
+        this.updateApiStatusDisplay();
+        
+        this.showNotification('✅ Đã lưu API keys thành công!', 'success');
+        
+        // Close modal
+        document.getElementById('apiSettingsModal').classList.add('hidden');
+    }
+    
+    clearApiKeysFromModal() {
+        this.clearApiKeys();
+        
+        // Clear input fields
+        document.getElementById('weatherApiKey').value = '';
+        document.getElementById('trafficApiKey').value = '';
+        
+        this.updateApiStatusDisplay();
+        this.showNotification('✅ Đã xóa API keys!', 'success');
+    }
+    
+    async testWeatherApi() {
+        const weatherApiKeyInput = document.getElementById('weatherApiKey');
+        const testBtn = document.getElementById('testWeatherApi');
+        const apiKey = weatherApiKeyInput.value.trim();
+        
+        if (!apiKey) {
+            alert('Vui lòng nhập API key trước!');
+            return;
+        }
+        
+        // Save original button text
+        const originalText = testBtn.innerHTML;
+        testBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Đang kiểm tra...';
+        testBtn.disabled = true;
+        
+        try {
+            // Test with Hanoi coordinates using WeatherAPI.com
+            const url = `https://api.weatherapi.com/v1/current.json?key=${apiKey}&q=21.0285,105.8542&aqi=no`;
+            console.log('Testing WeatherAPI.com with URL:', url);
+            
+            const response = await fetch(url);
+            console.log('Response status:', response.status);
+            
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.log('Error response:', errorText);
+                
+                if (response.status === 401) {
+                    throw new Error('API key không hợp lệ hoặc hết hạn!');
+                } else if (response.status === 403) {
+                    throw new Error('API key không có quyền truy cập!');
+                } else if (response.status === 429) {
+                    throw new Error('Đã vượt quá giới hạn API calls!');
+                }
+                throw new Error(`WeatherAPI Error: ${response.status} - ${errorText}`);
+            }
+            
+            const data = await response.json();
+            console.log('Weather API test successful:', data);
+            
+            this.showNotification(`✅ API hoạt động! Thời tiết Hà Nội: ${data.current.condition.text}, ${Math.round(data.current.temp_c)}°C`, 'success');
+            
+        } catch (error) {
+            console.error('Weather API test failed:', error);
+            this.showNotification(`❌ Lỗi: ${error.message}`, 'error');
+        } finally {
+            testBtn.innerHTML = originalText;
+            testBtn.disabled = false;
+        }
+    }
+    
+    async testTrafficApi() {
+        const trafficApiKeyInput = document.getElementById('trafficApiKey');
+        const testBtn = document.getElementById('testTrafficApi');
+        const testLatInput = document.getElementById('testLat');
+        const testLngInput = document.getElementById('testLng');
+        const resultsDiv = document.getElementById('trafficTestResults');
+        const resultsContent = document.getElementById('trafficResultsContent');
+        
+        const apiKey = trafficApiKeyInput.value.trim();
+        const lat = parseFloat(testLatInput.value) || 10.8231;
+        const lng = parseFloat(testLngInput.value) || 106.6297;
+        
+        if (!apiKey) {
+            this.showNotification('⚠️ Vui lòng nhập TomTom API key trước!', 'warning');
+            return;
+        }
+        
+        // Save original button text
+        const originalText = testBtn.innerHTML;
+        testBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Đang phân tích...';
+        testBtn.disabled = true;
+        
+        // Hide previous results
+        resultsDiv.classList.add('hidden');
+        
+        try {
+            console.log(`Testing TomTom Traffic API at coordinates: ${lat}, ${lng}`);
+            
+            // First test API key validity
+            const keyTest = await this.testApiKeyValidity(apiKey);
+            if (!keyTest.valid) {
+                throw new Error(keyTest.message);
+            }
+            
+            // Test with user coordinates
+            const url = `https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json?key=${apiKey}&point=${lat},${lng}`;
+            
+            const response = await fetch(url);
+            
+            if (!response.ok) {
+                if (response.status === 403) {
+                    throw new Error('API key không hợp lệ hoặc không có quyền truy cập!');
+                } else if (response.status === 429) {
+                    throw new Error('Đã vượt quá giới hạn requests (2,500/ngày)!');
+                } else if (response.status === 400) {
+                    throw new Error('Tọa độ không hợp lệ!');
+                }
+                throw new Error(`HTTP Error: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            console.log('Traffic API response:', data);
+            
+            // Parse traffic data
+            const trafficData = data.flowSegmentData;
+            if (!trafficData) {
+                throw new Error('Không có dữ liệu traffic tại vị trí này!');
+            }
+            
+            // Calculate traffic metrics
+            const currentSpeed = trafficData.currentSpeed || 0;
+            const freeFlowSpeed = trafficData.freeFlowSpeed || 0;
+            const confidence = trafficData.confidence || 0;
+            
+            // Determine traffic condition
+            let trafficCondition = 'Unknown';
+            let trafficColor = 'gray';
+            let trafficIcon = '❓';
+            
+            if (currentSpeed > 0 && freeFlowSpeed > 0) {
+                const speedRatio = currentSpeed / freeFlowSpeed;
+                
+                if (speedRatio >= 0.8) {
+                    trafficCondition = 'Thông thoáng';
+                    trafficColor = 'green';
+                    trafficIcon = '🟢';
+                } else if (speedRatio >= 0.5) {
+                    trafficCondition = 'Chậm';
+                    trafficColor = 'yellow';
+                    trafficIcon = '🟡';
+                } else if (speedRatio >= 0.2) {
+                    trafficCondition = 'Tắc đường';
+                    trafficColor = 'red';
+                    trafficIcon = '🔴';
+                } else {
+                    trafficCondition = 'Tắc đường nghiêm trọng';
+                    trafficColor = 'red';
+                    trafficIcon = '🛑';
+                }
+            }
+            
+            // Calculate road segments (simplified)
+            const roadLength = 1; // Assume 1km radius
+            const congestedLength = freeFlowSpeed > 0 ? roadLength * (1 - (currentSpeed / freeFlowSpeed)) : 0;
+            const freeFlowLength = roadLength - congestedLength;
+            
+            // Display results
+            resultsContent.innerHTML = `
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div class="bg-${trafficColor}-50 p-3 rounded border border-${trafficColor}-200">
+                        <div class="text-center">
+                            <div class="text-2xl mb-1">${trafficIcon}</div>
+                            <div class="text-sm font-semibold text-${trafficColor}-800">${trafficCondition}</div>
+                        </div>
+                    </div>
+                    <div class="bg-blue-50 p-3 rounded border border-blue-200">
+                        <div class="text-center">
+                            <div class="text-lg font-bold text-blue-800">${currentSpeed} km/h</div>
+                            <div class="text-xs text-blue-600">Tốc độ hiện tại</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="space-y-2">
+                    <div class="flex justify-between items-center p-2 bg-gray-100 rounded">
+                        <span class="text-sm font-medium">🚗 Tốc độ hiện tại:</span>
+                        <span class="font-bold">${currentSpeed} km/h</span>
+                    </div>
+                    <div class="flex justify-between items-center p-2 bg-gray-100 rounded">
+                        <span class="text-sm font-medium">🏃 Tốc độ tối đa:</span>
+                        <span class="font-bold">${freeFlowSpeed} km/h</span>
+                    </div>
+                    <div class="flex justify-between items-center p-2 bg-gray-100 rounded">
+                        <span class="text-sm font-medium">📊 Độ tin cậy:</span>
+                        <span class="font-bold">${confidence}%</span>
+                    </div>
+                </div>
+                
+                <div class="mt-4 p-3 bg-blue-50 rounded border border-blue-200">
+                    <h6 class="text-sm font-semibold text-blue-800 mb-2">📏 Phân tích đoạn đường (1km):</h6>
+                    <div class="grid grid-cols-2 gap-2 text-xs">
+                        <div class="flex justify-between">
+                            <span>🟢 Thông thoáng:</span>
+                            <span class="font-bold text-green-600">${freeFlowLength.toFixed(2)} km</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>🔴 Tắc đường:</span>
+                            <span class="font-bold text-red-600">${congestedLength.toFixed(2)} km</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-3 text-xs text-gray-600">
+                    <i class="fas fa-info-circle mr-1"></i>
+                    Dữ liệu tại tọa độ: ${lat.toFixed(6)}, ${lng.toFixed(6)}
+                </div>
+            `;
+            
+            // Show results
+            resultsDiv.classList.remove('hidden');
+            this.showNotification(`✅ Phân tích traffic thành công! Tình trạng: ${trafficCondition}`, 'success');
+            
+            // Add traffic marker to map
+            this.addTrafficFlowToMap(lat, lng, data);
+            
+            // Add clear traffic button to results
+            const clearTrafficBtn = document.createElement('button');
+            clearTrafficBtn.className = 'w-full mt-3 bg-gray-500 hover:bg-gray-600 text-white py-2 px-3 rounded text-sm transition-colors';
+            clearTrafficBtn.innerHTML = '<i class="fas fa-trash mr-2"></i>Xóa marker trên map';
+            clearTrafficBtn.onclick = () => {
+                if (this.trafficMarker) {
+                    this.map.removeLayer(this.trafficMarker);
+                    this.trafficMarker = null;
+                    this.showNotification('✅ Đã xóa traffic marker', 'success');
+                }
+            };
+            resultsContent.appendChild(clearTrafficBtn);
+            
+        } catch (error) {
+            console.error('Traffic API test failed:', error);
+            
+            // Show error in results
+            resultsContent.innerHTML = `
+                <div class="bg-red-50 p-3 rounded border border-red-200">
+                    <div class="text-center">
+                        <div class="text-2xl mb-2">❌</div>
+                        <div class="text-sm font-semibold text-red-800">Lỗi kết nối API</div>
+                        <div class="text-xs text-red-600 mt-1">${error.message}</div>
+                    </div>
+                </div>
+            `;
+            
+            resultsDiv.classList.remove('hidden');
+            this.showNotification(`❌ ${error.message}`, 'error');
+        } finally {
+            testBtn.innerHTML = originalText;
+            testBtn.disabled = false;
+        }
+    }
+
+    // Visual Traffic Flow Display on Map
+    addTrafficFlowToMap(lat, lng, trafficData) {
+        // Remove existing traffic markers
+        if (this.trafficMarker) {
+            this.map.removeLayer(this.trafficMarker);
+        }
+        
+        if (!trafficData || !trafficData.flowSegmentData) {
+            return;
+        }
+        
+        const currentSpeed = trafficData.flowSegmentData.currentSpeed || 0;
+        const freeFlowSpeed = trafficData.flowSegmentData.freeFlowSpeed || 0;
+        
+        // Calculate traffic condition
+        let trafficColor = 'gray';
+        let trafficIcon = '❓';
+        let trafficText = 'Unknown';
+        
+        if (currentSpeed > 0 && freeFlowSpeed > 0) {
+            const speedRatio = currentSpeed / freeFlowSpeed;
+            
+            if (speedRatio >= 0.8) {
+                trafficColor = 'green';
+                trafficIcon = '🟢';
+                trafficText = 'Thông thoáng';
+            } else if (speedRatio >= 0.5) {
+                trafficColor = 'yellow';
+                trafficIcon = '🟡';
+                trafficText = 'Chậm';
+            } else if (speedRatio >= 0.2) {
+                trafficColor = 'red';
+                trafficIcon = '🔴';
+                trafficText = 'Tắc đường';
+            } else {
+                trafficColor = 'red';
+                trafficIcon = '🛑';
+                trafficText = 'Tắc nghiêm trọng';
+            }
+        }
+        
+        // Create traffic marker
+        const trafficIconHtml = `
+            <div style="background: white; border: 2px solid ${trafficColor === 'green' ? '#10b981' : trafficColor === 'yellow' ? '#f59e0b' : '#ef4444'}; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; font-size: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">
+                ${trafficIcon}
+            </div>
+        `;
+        
+        const trafficIconDiv = L.divIcon({
+            html: trafficIconHtml,
+            className: 'traffic-marker',
+            iconSize: [40, 40],
+            iconAnchor: [20, 20]
+        });
+        
+        this.trafficMarker = L.marker([lat, lng], { icon: trafficIconDiv })
+            .addTo(this.map)
+            .bindPopup(`
+                <div style="min-width: 200px;">
+                    <div style="text-align: center; margin-bottom: 10px;">
+                        <div style="font-size: 24px; margin-bottom: 5px;">${trafficIcon}</div>
+                        <div style="font-weight: bold; color: ${trafficColor === 'green' ? '#10b981' : trafficColor === 'yellow' ? '#f59e0b' : '#ef4444'};">${trafficText}</div>
+                    </div>
+                    <div style="font-size: 14px;">
+                        <div style="margin-bottom: 5px;"><strong>🚗 Tốc độ hiện tại:</strong> ${currentSpeed} km/h</div>
+                        <div style="margin-bottom: 5px;"><strong>🏃 Tốc độ tối đa:</strong> ${freeFlowSpeed} km/h</div>
+                        <div style="margin-bottom: 5px;"><strong>📊 Độ tin cậy:</strong> ${trafficData.flowSegmentData.confidence || 0}%</div>
+                        <div style="font-size: 12px; color: #666; margin-top: 10px;">
+                            Dữ liệu thời gian thực từ TomTom
+                        </div>
+                    </div>
+                </div>
+            `);
+        
+        // Auto-open popup for a few seconds
+        this.trafficMarker.openPopup();
+        setTimeout(() => {
+            if (this.trafficMarker) {
+                this.trafficMarker.closePopup();
+            }
+        }, 5000);
+        
+        console.log(`Traffic marker added at ${lat}, ${lng}: ${trafficText} (${currentSpeed} km/h)`);
+    }
+
+    bindPopularLocationsToggle() {
+        const toggleBtn = document.getElementById('togglePopularLocations');
+        const contentDiv = document.getElementById('popularLocationsContent');
+        const toggleText = document.getElementById('popularLocationsToggleText');
+        const toggleIcon = document.getElementById('popularLocationsToggleIcon');
+        
+        if (!toggleBtn || !contentDiv) {
+            console.log('Popular locations toggle elements not found');
+            return;
+        }
+        
+        // Load saved state
+        const isHidden = localStorage.getItem('popularLocationsHidden') === 'true';
+        this.updatePopularLocationsToggle(isHidden, toggleText, toggleIcon, contentDiv);
+        
+        toggleBtn.addEventListener('click', () => {
+            const isCurrentlyHidden = contentDiv.classList.contains('hidden');
+            const newState = !isCurrentlyHidden;
+            
+            // Save state to localStorage
+            localStorage.setItem('popularLocationsHidden', newState.toString());
+            
+            // Update UI
+            this.updatePopularLocationsToggle(newState, toggleText, toggleIcon, contentDiv);
+            
+            // Show notification
+            const message = newState ? 'Đã ẩn địa điểm phổ biến' : 'Đã hiện địa điểm phổ biến';
+            this.showNotification(`✅ ${message}`, 'success');
+            
+            console.log(`Popular locations ${newState ? 'hidden' : 'shown'}`);
+        });
+        
+        console.log('Popular locations toggle bound successfully');
+    }
+    
+    updatePopularLocationsToggle(isHidden, toggleText, toggleIcon, contentDiv) {
+        if (isHidden) {
+            contentDiv.classList.add('hidden');
+            toggleText.textContent = 'Hiện';
+            toggleIcon.className = 'fas fa-eye text-xs';
+            toggleIcon.parentElement.className = toggleIcon.parentElement.className.replace('text-gray-600', 'text-green-600');
+        } else {
+            contentDiv.classList.remove('hidden');
+            toggleText.textContent = 'Ẩn';
+            toggleIcon.className = 'fas fa-eye-slash text-xs';
+            toggleIcon.parentElement.className = toggleIcon.parentElement.className.replace('text-green-600', 'text-gray-600');
+        }
+    }
+
+    bindTripDetailsClose() {
+        const closeBtn = document.getElementById('closeTripDetails');
+        const tripDetails = document.getElementById('tripDetails');
+        
+        if (closeBtn && tripDetails) {
+            closeBtn.addEventListener('click', () => {
+                tripDetails.classList.add('hidden');
+                this.showNotification('✅ Đã ẩn thông tin chuyến đi', 'success');
+                console.log('Trip details closed');
+            });
+            
+            console.log('Trip details close button bound successfully');
+        } else {
+            console.log('Trip details close button elements not found');
+        }
+    }
+    
+    // Test function to show trip details
+    testTripDetails() {
+        const tripDetails = document.getElementById('tripDetails');
+        if (tripDetails) {
+            tripDetails.classList.remove('hidden');
+            tripDetails.style.zIndex = '9999';
+            console.log('Trip details test - should be visible on top of map');
+        }
+    }
+    
+    bindTrafficTestLocations() {
+        const testLocationBtns = document.querySelectorAll('.traffic-test-location');
+        const testLatInput = document.getElementById('testLat');
+        const testLngInput = document.getElementById('testLng');
+        
+        testLocationBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const lat = btn.getAttribute('data-lat');
+                const lng = btn.getAttribute('data-lng');
+                const name = btn.getAttribute('data-name');
+                
+                // Update test coordinates
+                if (testLatInput) testLatInput.value = lat;
+                if (testLngInput) testLngInput.value = lng;
+                
+                // Show notification
+                this.showNotification(`📍 Đã chọn ${name} để test traffic`, 'info');
+                
+                // Auto test if API key is available
+                const trafficApiKey = document.getElementById('trafficApiKey')?.value;
+                if (trafficApiKey && trafficApiKey.trim()) {
+                    setTimeout(() => {
+                        this.testTrafficApi();
+                    }, 500);
+                }
+                
+                console.log(`Traffic test location selected: ${name} (${lat}, ${lng})`);
+            });
+        });
+        
+        console.log('Traffic test locations bound successfully');
+    }
+    
+    // Test API key validity
+    async testApiKeyValidity(apiKey) {
+        try {
+            // Test with a simple request
+            const testUrl = `https://api.tomtom.com/search/2/search/hanoi.json?key=${apiKey}&limit=1`;
+            const response = await fetch(testUrl);
+            
+            if (response.ok) {
+                return { valid: true, message: 'API key hợp lệ' };
+            } else if (response.status === 403) {
+                return { valid: false, message: 'API key không có quyền truy cập Traffic Flow API' };
+            } else if (response.status === 401) {
+                return { valid: false, message: 'API key không hợp lệ' };
+            } else {
+                return { valid: false, message: `Lỗi: ${response.status}` };
+            }
+        } catch (error) {
+            return { valid: false, message: 'Lỗi kết nối: ' + error.message };
+        }
+    }
+    
+    async testApiKeyOnly() {
+        const trafficApiKeyInput = document.getElementById('trafficApiKey');
+        const testBtn = document.getElementById('testApiKey');
+        const apiKey = trafficApiKeyInput.value.trim();
+        
+        if (!apiKey) {
+            this.showNotification('⚠️ Vui lòng nhập TomTom API key trước!', 'warning');
+            return;
+        }
+        
+        // Save original button text
+        const originalText = testBtn.innerHTML;
+        testBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Đang kiểm tra...';
+        testBtn.disabled = true;
+        
+        try {
+            const keyTest = await this.testApiKeyValidity(apiKey);
+            
+            if (keyTest.valid) {
+                this.showNotification(`✅ ${keyTest.message}`, 'success');
+                console.log('API key is valid');
+            } else {
+                this.showNotification(`❌ ${keyTest.message}`, 'error');
+                console.log('API key validation failed:', keyTest.message);
+            }
+        } catch (error) {
+            this.showNotification(`❌ Lỗi: ${error.message}`, 'error');
+            console.error('API key test failed:', error);
+        } finally {
+            testBtn.innerHTML = originalText;
+            testBtn.disabled = false;
+        }
     }
 
     bindNewUIEvents() {
@@ -1212,7 +2684,7 @@ class FreeTaxiBookingApp {
         }
     }
 
-    confirmRoute() {
+    async confirmRoute() {
         if (!this.pickupLocation || !this.dropoffLocation) {
             alert('Vui lòng chọn cả điểm đón và điểm đến trước khi xác nhận!');
             return;
@@ -1221,11 +2693,27 @@ class FreeTaxiBookingApp {
         console.log('Confirming route calculation...');
         this.isRouteCalculated = true;
         
-        // Show trip details
-        document.getElementById('tripDetails').classList.remove('hidden');
+        // Show trip details immediately
+        const tripDetails = document.getElementById('tripDetails');
+        tripDetails.classList.remove('hidden');
+        tripDetails.style.zIndex = '9999';
+        
+        // Fetch real-time data (both in parallel)
+        const midLat = (this.pickupLocation.lat + this.dropoffLocation.lat) / 2;
+        const midLng = (this.pickupLocation.lng + this.dropoffLocation.lng) / 2;
+        
+        await Promise.all([
+            this.fetchWeatherData(this.pickupLocation.lat, this.pickupLocation.lng),
+            this.fetchTrafficData(midLat, midLng)
+        ]);
         
         // Calculate and display route
         this.calculateRoute();
+        
+        // Display pricing breakdown
+        setTimeout(() => {
+            this.displayPricingBreakdown();
+        }, 500);
         
         // Scroll to trip details
         document.getElementById('tripDetails').scrollIntoView({ 
@@ -1463,70 +2951,66 @@ class FreeTaxiBookingApp {
         return str.charAt(0).toUpperCase() + str.slice(1);
     }
 
-    // Save state to localStorage
+    // Save state to localStorage with debouncing
     saveState() {
+        // State saving disabled - app will start fresh each time
+        console.log('ℹ️ State saving disabled - App will start fresh on next load');
+        return;
+    }
+    
+    // Actual save operation
+    doSaveState() {
         const state = {
             pickupLocation: this.pickupLocation,
             dropoffLocation: this.dropoffLocation,
             pickupInput: document.getElementById('pickupLocation')?.value || '',
             dropoffInput: document.getElementById('dropoffLocation')?.value || '',
             currentCity: this.currentCity,
-            timestamp: Date.now()
+            timestamp: Date.now() // For reference only - NO auto-expiration
         };
         
         try {
             localStorage.setItem('taxiAppState', JSON.stringify(state));
-            console.log('State saved to localStorage');
+            console.log('💾 State saved to localStorage - Locations will persist indefinitely');
         } catch (error) {
             console.error('Failed to save state:', error);
         }
     }
 
     // Restore state from localStorage
-    restoreState() {
+    clearOldState() {
+        // Clear old state on page load to start fresh
         try {
-            const savedState = localStorage.getItem('taxiAppState');
-            if (savedState) {
-                const state = JSON.parse(savedState);
-                console.log('Restoring state from localStorage:', state);
-                
-                // Restore input values
-                const pickupInput = document.getElementById('pickupLocation');
-                const dropoffInput = document.getElementById('dropoffLocation');
-                
-                if (pickupInput && state.pickupInput) {
-                    pickupInput.value = state.pickupInput;
-                }
-                
-                if (dropoffInput && state.dropoffInput) {
-                    dropoffInput.value = state.dropoffInput;
-                }
-                
-                // Restore city selection
-                if (state.currentCity && state.currentCity !== 'all') {
-                    this.filterByCity(state.currentCity);
-                }
-                
-                // Restore locations if they exist
-                if (state.pickupLocation) {
-                    this.setPickupLocation(state.pickupLocation);
-                }
-                
-                if (state.dropoffLocation) {
-                    this.setDropoffLocation(state.dropoffLocation);
-                }
-                
-                // Calculate route if both locations exist
-                if (state.pickupLocation && state.dropoffLocation) {
-                    this.calculateRoute();
-                }
-                
-                // Show restoration notification
-                this.showNotification('Đã khôi phục dữ liệu từ lần sử dụng trước!', 'success');
-                console.log('State restored successfully');
+            localStorage.removeItem('taxiAppState');
+            console.log('🗑️ Old state cleared - Starting fresh');
+            
+            // Clear all UI elements
+            const pickupInput = document.getElementById('pickupLocation');
+            const dropoffInput = document.getElementById('dropoffLocation');
+            
+            if (pickupInput) {
+                pickupInput.value = '';
             }
+            
+            if (dropoffInput) {
+                dropoffInput.value = '';
+            }
+            
+            // Reset all internal state
+            this.pickupLocation = null;
+            this.dropoffLocation = null;
+            this.currentSelectionMode = null;
+            this.isRouteCalculated = false;
+            
+            // Hide trip details
+            const tripDetails = document.getElementById('tripDetails');
+            if (tripDetails) {
+                tripDetails.classList.add('hidden');
+            }
+            
+            console.log('✅ Application started with fresh state');
         } catch (error) {
-            console.error('Failed to restore state:', error);
+            console.error('Failed to clear old state:', error);
         }
     }
 
@@ -1538,6 +3022,23 @@ class FreeTaxiBookingApp {
         } catch (error) {
             console.error('Failed to clear saved state:', error);
         }
+    }
+    
+    // Cleanup method
+    destroy() {
+        // Clear any pending timeouts
+        if (this.saveStateTimeout) {
+            clearTimeout(this.saveStateTimeout);
+            this.saveStateTimeout = null;
+        }
+        
+        // Clear global instance
+        if (window.taxiAppInstance === this) {
+            window.taxiAppInstance = null;
+            window.taxiAppInitialized = false;
+        }
+        
+        console.log('App instance destroyed');
     }
 
     // Show notification
@@ -1986,62 +3487,68 @@ class FreeTaxiBookingApp {
     }
 
     resetBooking() {
-        // Reset customer information
+        console.log('🔄 Resetting booking - Keeping pickup/dropoff locations');
+        
+        // Reset customer information ONLY
         document.getElementById('customerName').value = '';
         document.getElementById('customerPhone').value = '';
         document.getElementById('notes').value = '';
 
-        // Reset locations
-        this.pickupLocation = null;
-        this.dropoffLocation = null;
-        this.currentSelectionMode = null;
-        this.isRouteCalculated = false;
-
-        // Clear markers and route
-        if (this.pickupMarker) {
-            this.map.removeLayer(this.pickupMarker);
-            this.pickupMarker = null;
-        }
-        if (this.dropoffMarker) {
-            this.map.removeLayer(this.dropoffMarker);
-            this.dropoffMarker = null;
-        }
-        if (this.route) {
-            this.map.removeLayer(this.route);
-            this.route = null;
-        }
-
-        // Reset UI to initial state
-        document.getElementById('selectionMode').classList.remove('hidden');
-        document.getElementById('locationSearch').classList.add('hidden');
-        document.getElementById('selectedLocations').classList.add('hidden');
-        document.getElementById('tripDetails').classList.add('hidden');
-
-        // Reset trip details
-        document.getElementById('distance').textContent = '-- km';
-        document.getElementById('duration').textContent = '-- phút';
-        document.getElementById('estimatedPrice').textContent = '-- VNĐ';
+        // ⚠️ IMPORTANT: DO NOT reset locations - Keep them for easy re-booking
+        // this.pickupLocation = null;  // COMMENTED OUT
+        // this.dropoffLocation = null; // COMMENTED OUT
         
-        // Hide route type indicator
-        const routeTypeElement = document.getElementById('routeType');
-        if (routeTypeElement) {
-            routeTypeElement.classList.add('hidden');
-        }
+        // Keep selection mode and route state
+        // this.currentSelectionMode = null; // COMMENTED OUT
+        // this.isRouteCalculated = false;   // COMMENTED OUT
 
-        // Reset booking status
+        // ⚠️ IMPORTANT: DO NOT clear markers - Keep them visible
+        // Markers and route stay on map for reference
+        // Users can manually clear them if needed using the X buttons
+
+        // Reset booking status UI
         document.getElementById('bookingStatus').classList.add('hidden');
         document.getElementById('bookingDetails').classList.add('hidden');
         
-        // Save state after reset
-        this.saveState();
-
+        // Show main booking form again
         document.querySelector('.bg-white.rounded-lg.shadow-xl').style.display = 'block';
 
-        this.map.setView([10.8231, 106.6297], 13);
+        // Scroll back to top of form
+        document.querySelector('.bg-white.rounded-lg.shadow-xl').scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'start' 
+        });
+        
+        // Show notification
+        this.showNotification('✅ Sẵn sàng đặt xe mới! Điểm đón/đến được giữ nguyên.', 'success');
+        
+        console.log('✅ Booking reset complete - Locations preserved for easy re-booking');
     }
 }
 
 // Initialize the application when DOM is loaded
+// Test navigation function
+function testNavigation() {
+    console.log('🧪 Test navigation called');
+    console.log('Current app instance:', window.taxiAppInstance);
+    
+    if (window.taxiAppInstance) {
+        console.log('Testing goToConfirmation...');
+        window.taxiAppInstance.goToConfirmation();
+    } else {
+        console.error('No app instance found');
+        // Test direct navigation
+        window.location.href = 'confirmation.html?test=1';
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
-    new FreeTaxiBookingApp();
+    // Prevent multiple initializations
+    if (!window.taxiAppInitialized) {
+        console.log('Initializing Taxi Booking App...');
+        window.taxiAppInitialized = true;
+        window.taxiAppInstance = new FreeTaxiBookingApp();
+    } else {
+        console.log('App already initialized, skipping...');
+    }
 });
