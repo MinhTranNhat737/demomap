@@ -1139,17 +1139,17 @@ class FreeTaxiBookingApp {
         
         // Morning rush hour: 6:30 AM - 9:00 AM
         if (hour >= 6.5 && hour < 9) {
-            return 1.3;
+            return 1.08; // 8% - Giảm từ 30%
         }
         
         // Evening rush hour: 5:00 PM - 8:00 PM
         if (hour >= 17 && hour < 20) {
-            return 1.3;
+            return 1.08; // 8% - Giảm từ 30%
         }
         
         // Lunch time: 11:30 AM - 1:30 PM
         if (hour >= 11.5 && hour < 13.5) {
-            return 1.15;
+            return 1.05; // 5% - Giảm từ 15%
         }
         
         return 1.0;
@@ -1163,25 +1163,25 @@ class FreeTaxiBookingApp {
             
             // Heavy rain or storm
             if (weather.includes('storm') || weather.includes('thunderstorm')) {
-                return 1.5;
+                return 1.08; // 8% - Giảm từ 50%
             }
             
             // Rain
             if (weather.includes('rain') || rain > 0) {
                 if (rain > 5) { // Heavy rain (>5mm/hour)
-                    return 1.4;
+                    return 1.07; // 7% - Giảm từ 40%
                 }
-                return 1.25; // Light to moderate rain
+                return 1.05; // 5% - Giảm từ 25%
             }
             
             // Snow (rare in Vietnam but included for completeness)
             if (weather.includes('snow')) {
-                return 1.4;
+                return 1.07; // 7% - Giảm từ 40%
             }
             
             // Fog or mist
             if (weather.includes('fog') || weather.includes('mist')) {
-                return 1.2;
+                return 1.05; // 5% - Giảm từ 20%
             }
         }
         
@@ -1207,16 +1207,16 @@ class FreeTaxiBookingApp {
             
             if (speedRatio < 0.3) {
                 // Extremely slow (< 30% of free flow speed)
-                congestionFactor = 1.5;
+                congestionFactor = 1.09; // 9% - Giảm từ 50%
             } else if (speedRatio < 0.5) {
                 // Heavy congestion (30-50% of free flow speed)
-                congestionFactor = 1.35;
+                congestionFactor = 1.08; // 8% - Giảm từ 35%
             } else if (speedRatio < 0.7) {
                 // Moderate congestion (50-70% of free flow speed)
-                congestionFactor = 1.2;
+                congestionFactor = 1.06; // 6% - Giảm từ 20%
             } else if (speedRatio < 0.85) {
                 // Light congestion (70-85% of free flow speed)
-                congestionFactor = 1.1;
+                congestionFactor = 1.03; // 3% - Giảm từ 10%
             }
             
             // Adjust based on confidence level
@@ -1240,19 +1240,19 @@ class FreeTaxiBookingApp {
         
         // Base congestion on location
         if (pickupHighTraffic && dropoffHighTraffic) {
-            congestionLevel = 1.15;
+            congestionLevel = 1.06; // 6% - Giảm từ 15%
         } else if (pickupHighTraffic || dropoffHighTraffic) {
-            congestionLevel = 1.1;
+            congestionLevel = 1.04; // 4% - Giảm từ 10%
         }
         
-        // Increase during peak hours
+        // Increase during peak hours (thêm nhẹ)
         if (day >= 1 && day <= 5) { // Weekdays
             if ((hour >= 7 && hour < 9) || (hour >= 17 && hour < 19)) {
-                congestionLevel *= 1.2;
+                congestionLevel += 0.03; // Thêm 3% thay vì nhân 1.2
             }
         }
         
-        return Math.min(congestionLevel, 1.4); // Cap at 1.4x
+        return Math.min(congestionLevel, 1.09); // Giới hạn tối đa 9%
     }
     
     isHighTrafficArea(location) {
@@ -2398,18 +2398,67 @@ class FreeTaxiBookingApp {
 
     bindTripDetailsClose() {
         const closeBtn = document.getElementById('closeTripDetails');
+        const confirmBtn = document.getElementById('confirmTripDetails');
         const tripDetails = document.getElementById('tripDetails');
         
+        // Handle close button (X)
         if (closeBtn && tripDetails) {
             closeBtn.addEventListener('click', () => {
-                tripDetails.classList.add('hidden');
-                this.showNotification('✅ Đã ẩn thông tin chuyến đi', 'success');
-                console.log('Trip details closed');
+                this.hideTripDetails();
+                this.showNotification('❌ Đã hủy thông tin chuyến đi', 'info');
+                console.log('Trip details cancelled');
+            });
+        }
+        
+        // Handle confirm button
+        if (confirmBtn && tripDetails) {
+            confirmBtn.addEventListener('click', () => {
+                this.hideTripDetails();
+                this.scrollToBookingSection();
+                this.showNotification('✅ Đã xác nhận thông tin chuyến đi', 'success');
+                console.log('Trip details confirmed and scrolled to booking');
+            });
+        }
+        
+        console.log('Trip details buttons bound successfully');
+    }
+
+    hideTripDetails() {
+        const tripDetails = document.getElementById('tripDetails');
+        const map = document.getElementById('map');
+        
+        // Remove blur from map
+        if (map) {
+            map.classList.remove('blurred');
+        }
+        
+        // Hide with animation
+        tripDetails.style.transform = 'scale(0.95)';
+        tripDetails.style.opacity = '0';
+        
+        setTimeout(() => {
+            tripDetails.classList.add('hidden');
+        }, 200);
+    }
+
+    scrollToBookingSection() {
+        // Find the customer information section (form đặt xe)
+        const customerSection = document.querySelector('.border-t.pt-6');
+        if (customerSection) {
+            customerSection.scrollIntoView({ 
+                behavior: 'smooth', 
+                block: 'start' 
             });
             
-            console.log('Trip details close button bound successfully');
-        } else {
-            console.log('Trip details close button elements not found');
+            // Add highlight effect
+            customerSection.style.transition = 'all 0.3s ease';
+            customerSection.style.transform = 'scale(1.02)';
+            customerSection.style.boxShadow = '0 20px 40px rgba(0,0,0,0.15)';
+            
+            setTimeout(() => {
+                customerSection.style.transform = 'scale(1)';
+                customerSection.style.boxShadow = '';
+            }, 1000);
         }
     }
     
@@ -2693,10 +2742,24 @@ class FreeTaxiBookingApp {
         console.log('Confirming route calculation...');
         this.isRouteCalculated = true;
         
-        // Show trip details immediately
+        // Show trip details with animation
         const tripDetails = document.getElementById('tripDetails');
+        const map = document.getElementById('map');
+        
+        // Blur map behind
+        if (map) {
+            map.classList.add('blurred');
+        }
+        
+        // Show trip details with animation
         tripDetails.classList.remove('hidden');
         tripDetails.style.zIndex = '9999';
+        
+        // Add smooth animation
+        setTimeout(() => {
+            tripDetails.style.transform = 'scale(1)';
+            tripDetails.style.opacity = '1';
+        }, 10);
         
         // Fetch real-time data (both in parallel)
         const midLat = (this.pickupLocation.lat + this.dropoffLocation.lat) / 2;
@@ -2730,9 +2793,399 @@ class FreeTaxiBookingApp {
             return;
         }
 
-        const results = this.searchLocations(value);
-        console.log(`Found ${results.length} results for "${value}"`);
-        this.showSuggestions(results, type);
+        // Tìm kiếm trong database local trước (hiển thị ngay)
+        const localResults = this.searchLocations(value);
+        console.log(`Found ${localResults.length} local results for "${value}"`);
+        this.showSuggestions(localResults, type);
+        
+        // Debounce API call để tránh gọi quá nhiều
+        if (this.searchTimeout) {
+            clearTimeout(this.searchTimeout);
+        }
+        
+        // Gọi API tìm kiếm sau 500ms không gõ
+        if (value.length >= 3) {
+            this.searchTimeout = setTimeout(() => {
+                this.searchWithMultipleAPIs(value, type, localResults);
+            }, 500);
+        }
+    }
+
+    async searchWithMultipleAPIs(query, type, localResults) {
+        try {
+            // Gọi TomTom Search API (chính) và Nominatim (bổ sung)
+            const [tomtomResults, nominatimResults] = await Promise.allSettled([
+                this.searchWithTomTomAPI(query),
+                this.searchWithNominatimAPI(query)
+            ]);
+            
+            let allApiResults = [];
+            
+            // Xử lý kết quả TomTom (ưu tiên)
+            if (tomtomResults.status === 'fulfilled') {
+                allApiResults = allApiResults.concat(tomtomResults.value);
+            }
+            
+            // Xử lý kết quả Nominatim (bổ sung)
+            if (nominatimResults.status === 'fulfilled') {
+                allApiResults = allApiResults.concat(nominatimResults.value);
+            }
+            
+            console.log(`🔍 Total API results: ${allApiResults.length}`);
+            
+            // Kết hợp kết quả local và API
+            const combinedResults = this.mergeSearchResults(localResults, allApiResults);
+            console.log(`✅ Total combined results: ${combinedResults.length}`);
+            
+            this.showSuggestions(combinedResults, type);
+            
+        } catch (error) {
+            console.error('Multiple API search error:', error);
+            this.showSuggestions(localResults, type);
+        }
+    }
+
+    async searchWithTomTomAPI(query) {
+        try {
+            if (!this.trafficApiKey) {
+                console.log('⚠️ No TomTom API key configured');
+                return [];
+            }
+
+            // Sử dụng TomTom Search API
+            const searchParams = new URLSearchParams({
+                key: this.trafficApiKey,
+                query: query,
+                limit: '15',
+                countrySet: 'VN',
+                language: 'vi-VN',
+                idxSet: 'Geo,PAD,POI',
+                typeahead: 'true',
+                view: 'Unified'
+            });
+            
+            const url = `https://api.tomtom.com/search/2/search/${encodeURIComponent(query)}.json?${searchParams}`;
+            
+            const response = await fetch(url, {
+                headers: {
+                    'User-Agent': 'RadioCarTaxi/1.0',
+                    'Accept': 'application/json'
+                }
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                console.log(`🗺️ TomTom API found ${data.results?.length || 0} results`);
+                
+                if (data.results && data.results.length > 0) {
+                    return data.results.map(place => this.formatTomTomPlaceDetails(place));
+                }
+                return [];
+            } else {
+                console.log('⚠️ TomTom Search API failed');
+                return [];
+            }
+        } catch (error) {
+            console.error('TomTom Search API error:', error);
+            return [];
+        }
+    }
+
+    formatTomTomPlaceDetails(place) {
+        const poi = place.poi || {};
+        const address = place.address || {};
+        
+        // Tạo tên hiển thị
+        let displayName = place.poi?.name || place.address?.freeformAddress || place.address?.streetName || 'Địa điểm';
+        
+        // Tạo địa chỉ đầy đủ
+        const fullAddress = [
+            address.houseNumber,
+            address.streetName,
+            address.municipality,
+            address.countrySubdivision,
+            address.country
+        ].filter(part => part && part.trim()).join(', ');
+        
+        return {
+            name: displayName,
+            fullAddress: fullAddress,
+            lat: place.position?.lat || 0,
+            lng: place.position?.lon || 0,
+            city: address.municipality || address.countrySubdivision || 'Việt Nam',
+            district: address.municipalitySubdivision || '',
+            street: address.streetName || '',
+            houseNumber: address.houseNumber || '',
+            category: this.guessTomTomCategory(place),
+            importance: place.score || 0,
+            placeType: poi.classifications?.[0]?.code || 'unknown',
+            placeClass: poi.classifications?.[0]?.names?.[0] || 'unknown',
+            source: 'tomtom',
+            // Thông tin bổ sung từ TomTom
+            phone: poi.phone || '',
+            website: poi.url || '',
+            openingHours: poi.openingHours?.[0]?.text || '',
+            brand: poi.brand?.[0]?.name || '',
+            // Thông tin đánh giá
+            rating: this.calculateTomTomRating(place)
+        };
+    }
+
+    guessTomTomCategory(place) {
+        const poi = place.poi || {};
+        const classifications = poi.classifications || [];
+        
+        if (classifications.length > 0) {
+            const classification = classifications[0].code;
+            
+            if (classification.includes('HOSPITAL') || classification.includes('CLINIC')) return 'healthcare';
+            if (classification.includes('SCHOOL') || classification.includes('UNIVERSITY')) return 'education';
+            if (classification.includes('SHOPPING') || classification.includes('STORE')) return 'shopping';
+            if (classification.includes('HOTEL') || classification.includes('LODGING')) return 'hotel';
+            if (classification.includes('MUSEUM') || classification.includes('ATTRACTION')) return 'tourism';
+            if (classification.includes('OFFICE') || classification.includes('BUSINESS')) return 'business';
+            if (classification.includes('AIRPORT') || classification.includes('STATION')) return 'transportation';
+        }
+        
+        return 'other';
+    }
+
+    calculateTomTomRating(place) {
+        let rating = 0;
+        
+        // Điểm cơ bản từ score
+        if (place.score) {
+            rating += Math.min(place.score * 2, 5);
+        }
+        
+        // Bonus cho địa điểm có thông tin chi tiết
+        const poi = place.poi || {};
+        if (poi.phone) rating += 0.5;
+        if (poi.url) rating += 0.5;
+        if (poi.openingHours) rating += 0.3;
+        if (poi.brand) rating += 0.2;
+        
+        return Math.min(rating, 5);
+    }
+
+    async searchWithNominatimAPI(query) {
+        try {
+            // Sử dụng Nominatim API từ OpenStreetMap với nhiều tham số tìm kiếm
+            const searchParams = new URLSearchParams({
+                q: query,
+                countrycodes: 'vn',
+                format: 'json',
+                limit: '15',
+                addressdetails: '1',
+                'accept-language': 'vi',
+                extratags: '1',
+                namedetails: '1',
+                dedupe: '1',
+                bounded: '1',
+                viewbox: '102.1,8.1,109.5,23.4', // Bounding box cho Việt Nam
+                'bounded': '1'
+            });
+            
+            const url = `https://nominatim.openstreetmap.org/search?${searchParams}`;
+            
+            const response = await fetch(url, {
+                headers: {
+                    'User-Agent': 'RadioCarTaxi/1.0',
+                    'Accept': 'application/json'
+                }
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                console.log(`📍 Nominatim API found ${data.length} results`);
+                
+                // Chuyển đổi kết quả API sang format chi tiết
+                return data.map(place => this.formatPlaceDetails(place));
+            } else {
+                console.log('⚠️ Nominatim API failed');
+                return [];
+            }
+        } catch (error) {
+            console.error('Nominatim API error:', error);
+            return [];
+        }
+    }
+
+    formatPlaceDetails(place) {
+        const address = place.address || {};
+        
+        // Tạo tên hiển thị ngắn gọn
+        let displayName = place.name || place.display_name;
+        if (displayName.length > 80) {
+            displayName = displayName.substring(0, 80) + '...';
+        }
+        
+        // Lấy thông tin địa chỉ chi tiết
+        const city = address.city || address.town || address.village || address.province || 'Việt Nam';
+        const district = address.suburb || address.district || address.county || '';
+        const street = address.road || address.street || '';
+        const houseNumber = address.house_number || '';
+        
+        // Tạo địa chỉ đầy đủ
+        const fullAddress = [houseNumber, street, district, city]
+            .filter(part => part && part.trim())
+            .join(', ');
+        
+        return {
+            name: displayName,
+            fullAddress: fullAddress,
+            lat: parseFloat(place.lat),
+            lng: parseFloat(place.lon),
+            city: city,
+            district: district,
+            street: street,
+            houseNumber: houseNumber,
+            category: this.guessCategory(place),
+            importance: place.importance || 0,
+            placeType: place.type || 'unknown',
+            placeClass: place.class || 'unknown',
+            source: 'nominatim',
+            osmId: place.osm_id,
+            osmType: place.osm_type,
+            // Thông tin bổ sung từ extratags
+            phone: place.extratags?.phone || '',
+            website: place.extratags?.website || '',
+            openingHours: place.extratags?.['opening_hours'] || '',
+            wheelchair: place.extratags?.wheelchair || '',
+            // Thông tin đánh giá
+            rating: this.calculatePlaceRating(place)
+        };
+    }
+
+    calculatePlaceRating(place) {
+        let rating = 0;
+        
+        // Điểm cơ bản từ importance
+        if (place.importance) {
+            rating += Math.min(place.importance * 10, 5);
+        }
+        
+        // Bonus cho địa điểm có thông tin chi tiết
+        if (place.extratags?.phone) rating += 0.5;
+        if (place.extratags?.website) rating += 0.5;
+        if (place.extratags?.['opening_hours']) rating += 0.3;
+        
+        // Bonus cho loại địa điểm quan trọng
+        const importantTypes = ['hospital', 'university', 'airport', 'railway_station', 'bus_station'];
+        if (importantTypes.includes(place.type)) {
+            rating += 1;
+        }
+        
+        return Math.min(rating, 5);
+    }
+
+    createLocationDetails(result) {
+        let details = [];
+        
+        // Thông tin cơ bản
+        if (result.category && result.category !== 'other') {
+            details.push(`<span class="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">${this.capitalizeFirst(result.category)}</span>`);
+        }
+        
+        // Thông tin từ API
+        if (result.source === 'tomtom') {
+            if (result.phone) {
+                details.push(`<span class="text-xs text-gray-600">📞 ${result.phone}</span>`);
+            }
+            if (result.website) {
+                details.push(`<span class="text-xs text-gray-600">🌐 Website</span>`);
+            }
+            if (result.openingHours) {
+                details.push(`<span class="text-xs text-gray-600">🕒 ${result.openingHours}</span>`);
+            }
+            if (result.brand) {
+                details.push(`<span class="text-xs text-blue-600">🏷️ ${result.brand}</span>`);
+            }
+            
+            // Hiển thị rating nếu có
+            if (result.rating > 0) {
+                const stars = '★'.repeat(Math.floor(result.rating)) + '☆'.repeat(5 - Math.floor(result.rating));
+                details.push(`<span class="text-xs text-yellow-600">${stars}</span>`);
+            }
+        } else if (result.source === 'nominatim') {
+            if (result.phone) {
+                details.push(`<span class="text-xs text-gray-600">📞 ${result.phone}</span>`);
+            }
+            if (result.website) {
+                details.push(`<span class="text-xs text-gray-600">🌐 Website</span>`);
+            }
+            if (result.openingHours) {
+                details.push(`<span class="text-xs text-gray-600">🕒 ${result.openingHours}</span>`);
+            }
+            if (result.wheelchair === 'yes') {
+                details.push(`<span class="text-xs text-green-600">♿ Accessible</span>`);
+            }
+            
+            // Hiển thị rating nếu có
+            if (result.rating > 0) {
+                const stars = '★'.repeat(Math.floor(result.rating)) + '☆'.repeat(5 - Math.floor(result.rating));
+                details.push(`<span class="text-xs text-yellow-600">${stars}</span>`);
+            }
+        }
+        
+        // Thông tin địa điểm quan trọng
+        if (result.importance > 0.5) {
+            details.push(`<span class="text-xs text-orange-600">⭐ Quan trọng</span>`);
+        }
+        
+        return details.length > 0 ? `<div class="flex flex-wrap gap-1 mt-2">${details.join('')}</div>` : '';
+    }
+
+    guessCategory(place) {
+        const type = place.type?.toLowerCase() || '';
+        const placeClass = place.class?.toLowerCase() || '';
+        
+        if (type.includes('hospital') || type.includes('clinic')) return 'healthcare';
+        if (type.includes('university') || type.includes('school')) return 'education';
+        if (type.includes('mall') || type.includes('shop')) return 'shopping';
+        if (type.includes('hotel') || type.includes('resort')) return 'hotel';
+        if (type.includes('museum') || type.includes('temple')) return 'tourism';
+        if (type.includes('office') || type.includes('building')) return 'business';
+        if (type.includes('airport') || type.includes('station')) return 'transportation';
+        
+        return 'other';
+    }
+
+    mergeSearchResults(localResults, apiResults) {
+        const merged = [...localResults];
+        const existingNames = new Set(localResults.map(r => r.name.toLowerCase()));
+        
+        // Thêm kết quả API không trùng với local
+        apiResults.forEach(result => {
+            const nameKey = result.name.toLowerCase().substring(0, 50);
+            if (!existingNames.has(nameKey)) {
+                merged.push(result);
+                existingNames.add(nameKey);
+            }
+        });
+        
+        // Sắp xếp theo độ liên quan và rating
+        merged.sort((a, b) => {
+            // Ưu tiên: Local > TomTom > Nominatim
+            const sourcePriority = { 'local': 0, 'tomtom': 1, 'nominatim': 2 };
+            const priorityA = sourcePriority[a.source] || 3;
+            const priorityB = sourcePriority[b.source] || 3;
+            
+            if (priorityA !== priorityB) return priorityA - priorityB;
+            
+            // Sau đó sắp xếp theo rating
+            const ratingA = a.rating || 0;
+            const ratingB = b.rating || 0;
+            if (ratingA !== ratingB) return ratingB - ratingA;
+            
+            // Cuối cùng sắp xếp theo importance
+            const importanceA = a.importance || 0;
+            const importanceB = b.importance || 0;
+            return importanceB - importanceA;
+        });
+        
+        // Giới hạn tổng số kết quả
+        return merged.slice(0, 15);
     }
 
     searchLocations(query) {
@@ -2785,17 +3238,27 @@ class FreeTaxiBookingApp {
             
             const icon = categoryIcons[result.category] || '📍';
             
+            // Tạo thông tin chi tiết cho địa điểm
+            const detailInfo = this.createLocationDetails(result);
+            
             item.innerHTML = `
-                <div class="flex items-center space-x-3 p-2">
+                <div class="flex items-center space-x-3 p-3 border-b border-gray-100">
                     <span class="text-lg">${icon}</span>
-                    <div class="flex-1">
-                        <div class="font-medium text-gray-800">${result.name}</div>
-                        <div class="text-xs text-gray-500">${result.district} • ${result.city || 'TP.HCM'} • ${this.capitalizeFirst(result.category)}</div>
+                    <div class="flex-1 min-w-0">
+                        <div class="font-medium text-gray-800 truncate">${result.name}</div>
+                        <div class="text-xs text-gray-500 mt-1">
+                            ${result.fullAddress || `${result.district} • ${result.city || 'TP.HCM'}`}
+                        </div>
+                        ${detailInfo}
                     </div>
-                    <button class="focus-location-btn text-blue-600 hover:text-blue-800 p-1" 
-                            title="Xem trên bản đồ">
-                        <i class="fas fa-eye"></i>
-                    </button>
+                    <div class="flex flex-col items-end space-y-1">
+                        <button class="focus-location-btn text-blue-600 hover:text-blue-800 p-1" 
+                                title="Xem trên bản đồ">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        ${result.source === 'tomtom' ? '<span class="text-xs text-blue-600">🗺️ TomTom</span>' : 
+                          result.source === 'nominatim' ? '<span class="text-xs text-green-600">🌐 OSM</span>' : ''}
+                    </div>
                 </div>
             `;
             
@@ -2810,9 +3273,9 @@ class FreeTaxiBookingApp {
                 }
             });
             
-            // Add hover effects
+            // Add hover effects với thông tin chi tiết
             item.addEventListener('mouseenter', () => {
-                this.highlightLocationOnMap(result);
+                this.highlightLocationOnMapWithDetails(result);
             });
             
             item.addEventListener('mouseleave', () => {
@@ -2925,10 +3388,170 @@ class FreeTaxiBookingApp {
         });
     }
 
+    highlightLocationOnMapWithDetails(location) {
+        if (!this.map || !location) return;
+        
+        // Xóa marker cũ nếu có
+        this.clearLocationHighlight();
+        if (this.tempMarker) {
+            this.map.removeLayer(this.tempMarker);
+        }
+        
+        // Tạo marker với thông tin chi tiết
+        const markerIcon = this.createDetailedMarkerIcon(location);
+        this.tempMarker = L.marker([location.lat, location.lng], {
+            icon: markerIcon
+        }).addTo(this.map);
+        
+        // Tạo popup chi tiết
+        const popupContent = this.createDetailedPopupContent(location);
+        this.tempMarker.bindPopup(popupContent, {
+            maxWidth: 300,
+            className: 'detailed-popup'
+        }).openPopup();
+        
+        // Pan to location với zoom phù hợp
+        this.map.setView([location.lat, location.lng], 16);
+    }
+
+    createDetailedMarkerIcon(location) {
+        // Tạo icon marker với màu sắc theo loại địa điểm
+        const categoryColors = {
+            healthcare: '#e53e3e',    // Đỏ
+            education: '#3182ce',      // Xanh dương
+            shopping: '#38a169',       // Xanh lá
+            hotel: '#d69e2e',          // Vàng
+            tourism: '#805ad5',        // Tím
+            business: '#2d3748',       // Xám đen
+            transportation: '#ed8936',  // Cam
+            other: '#4a5568'           // Xám
+        };
+        
+        const color = categoryColors[location.category] || categoryColors.other;
+        const categoryIcons = {
+            healthcare: '🏥',
+            education: '🎓',
+            shopping: '🛍️',
+            hotel: '🏨',
+            tourism: '🎭',
+            business: '🏢',
+            transportation: '🚌',
+            other: '📍'
+        };
+        
+        const icon = categoryIcons[location.category] || '📍';
+        
+        return L.divIcon({
+            className: 'detailed-marker',
+            html: `
+                <div class="marker-container" style="
+                    background: ${color};
+                    border: 3px solid white;
+                    border-radius: 50%;
+                    width: 40px;
+                    height: 40px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                    animation: markerPulse 2s infinite;
+                ">
+                    <span style="font-size: 18px;">${icon}</span>
+                </div>
+                <style>
+                    @keyframes markerPulse {
+                        0% { transform: scale(1); }
+                        50% { transform: scale(1.1); }
+                        100% { transform: scale(1); }
+                    }
+                </style>
+            `,
+            iconSize: [40, 40],
+            iconAnchor: [20, 20],
+            popupAnchor: [0, -20]
+        });
+    }
+
+    createDetailedPopupContent(location) {
+        const details = [];
+        
+        // Thông tin cơ bản
+        details.push(`
+            <div class="popup-header" style="border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; margin-bottom: 8px;">
+                <h3 style="margin: 0; font-size: 16px; font-weight: bold; color: #2d3748;">${location.name}</h3>
+                <p style="margin: 4px 0 0 0; font-size: 12px; color: #718096;">${location.fullAddress || `${location.district} • ${location.city}`}</p>
+            </div>
+        `);
+        
+        // Thông tin chi tiết
+        if (location.source === 'tomtom') {
+            if (location.phone) {
+                details.push(`<div style="margin: 4px 0;"><strong>📞:</strong> ${location.phone}</div>`);
+            }
+            if (location.website) {
+                details.push(`<div style="margin: 4px 0;"><strong>🌐:</strong> <a href="${location.website}" target="_blank" style="color: #3182ce;">Website</a></div>`);
+            }
+            if (location.openingHours) {
+                details.push(`<div style="margin: 4px 0;"><strong>🕒:</strong> ${location.openingHours}</div>`);
+            }
+            if (location.brand) {
+                details.push(`<div style="margin: 4px 0;"><strong>🏷️:</strong> ${location.brand}</div>`);
+            }
+        } else if (location.source === 'nominatim') {
+            if (location.phone) {
+                details.push(`<div style="margin: 4px 0;"><strong>📞:</strong> ${location.phone}</div>`);
+            }
+            if (location.website) {
+                details.push(`<div style="margin: 4px 0;"><strong>🌐:</strong> <a href="${location.website}" target="_blank" style="color: #3182ce;">Website</a></div>`);
+            }
+            if (location.openingHours) {
+                details.push(`<div style="margin: 4px 0;"><strong>🕒:</strong> ${location.openingHours}</div>`);
+            }
+            if (location.wheelchair === 'yes') {
+                details.push(`<div style="margin: 4px 0;"><strong>♿:</strong> Accessible</div>`);
+            }
+        }
+        
+        // Rating và importance
+        if (location.rating > 0) {
+            const stars = '★'.repeat(Math.floor(location.rating)) + '☆'.repeat(5 - Math.floor(location.rating));
+            details.push(`<div style="margin: 4px 0;"><strong>⭐:</strong> ${stars} (${location.rating.toFixed(1)})</div>`);
+        }
+        
+        if (location.importance > 0.5) {
+            details.push(`<div style="margin: 4px 0;"><strong>⭐:</strong> Địa điểm quan trọng</div>`);
+        }
+        
+        // Nguồn dữ liệu
+        const sourceText = location.source === 'tomtom' ? '🗺️ TomTom' : 
+                          location.source === 'nominatim' ? '🌐 OpenStreetMap' : '📱 Local';
+        details.push(`<div style="margin: 4px 0; font-size: 11px; color: #718096;"><strong>Nguồn:</strong> ${sourceText}</div>`);
+        
+        // Nút hành động
+        details.push(`
+            <div style="margin-top: 12px; display: flex; gap: 8px;">
+                <button onclick="window.selectLocationFromPopup('${location.lat}', '${location.lng}', '${location.name}')" 
+                        style="background: #3182ce; color: white; border: none; padding: 6px 12px; border-radius: 4px; font-size: 12px; cursor: pointer;">
+                    Chọn địa điểm
+                </button>
+                <button onclick="window.viewOnMap('${location.lat}', '${location.lng}')" 
+                        style="background: #38a169; color: white; border: none; padding: 6px 12px; border-radius: 4px; font-size: 12px; cursor: pointer;">
+                    Xem chi tiết
+                </button>
+            </div>
+        `);
+        
+        return details.join('');
+    }
+
     clearLocationHighlight() {
         if (this.highlightMarker) {
             this.map.removeLayer(this.highlightMarker);
             this.highlightMarker = null;
+        }
+        if (this.tempMarker) {
+            this.map.removeLayer(this.tempMarker);
+            this.tempMarker = null;
         }
     }
 
@@ -3527,20 +4150,61 @@ class FreeTaxiBookingApp {
 }
 
 // Initialize the application when DOM is loaded
-// Test navigation function
-function testNavigation() {
-    console.log('🧪 Test navigation called');
-    console.log('Current app instance:', window.taxiAppInstance);
-    
+
+// Global functions for popup buttons
+window.selectLocationFromPopup = (lat, lng, name) => {
     if (window.taxiAppInstance) {
-        console.log('Testing goToConfirmation...');
-        window.taxiAppInstance.goToConfirmation();
-    } else {
-        console.error('No app instance found');
-        // Test direct navigation
-        window.location.href = 'confirmation.html?test=1';
+        console.log('Selecting location from popup:', { lat, lng, name });
+        
+        // Tạo object location
+        const location = {
+            lat: parseFloat(lat),
+            lng: parseFloat(lng),
+            name: name,
+            city: 'Việt Nam',
+            district: '',
+            category: 'other'
+        };
+        
+        // Xác định mode hiện tại
+        const currentMode = window.taxiAppInstance.currentSelectionMode || 'pickup';
+        
+        if (currentMode === 'pickup') {
+            window.taxiAppInstance.setPickupLocation(location);
+            document.getElementById('pickupLocation').value = name;
+        } else {
+            window.taxiAppInstance.setDropoffLocation(location);
+            document.getElementById('dropoffLocation').value = name;
+        }
+        
+        // Ẩn suggestions
+        window.taxiAppInstance.hideSuggestions();
+        
+        // Tính toán route nếu có cả pickup và dropoff
+        if (window.taxiAppInstance.pickupLocation && window.taxiAppInstance.dropoffLocation) {
+            window.taxiAppInstance.calculateRoute();
+        }
+        
+        // Đóng popup
+        if (window.taxiAppInstance.tempMarker) {
+            window.taxiAppInstance.tempMarker.closePopup();
+        }
     }
-}
+};
+
+window.viewOnMap = (lat, lng) => {
+    if (window.taxiAppInstance) {
+        console.log('Viewing location on map:', { lat, lng });
+        
+        // Zoom vào địa điểm
+        window.taxiAppInstance.map.setView([parseFloat(lat), parseFloat(lng)], 18);
+        
+        // Đóng popup
+        if (window.taxiAppInstance.tempMarker) {
+            window.taxiAppInstance.tempMarker.closePopup();
+        }
+    }
+};
 
 document.addEventListener('DOMContentLoaded', () => {
     // Prevent multiple initializations

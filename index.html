@@ -393,7 +393,7 @@
                     <div id="map" class="w-full h-[600px] rounded-lg border border-gray-300 shadow-lg relative z-0"></div>
                     
                     <!-- Trip Details Overlay (Hidden until confirmed) -->
-                    <div id="tripDetails" class="hidden absolute top-6 left-6 right-6 bg-white/98 backdrop-blur-md rounded-xl shadow-2xl border-2 border-black z-[9999] max-h-96 overflow-y-auto p-6">
+                    <div id="tripDetails" class="hidden absolute top-6 left-6 right-6 bg-white/98 backdrop-blur-md rounded-xl shadow-2xl z-[9999] max-h-[80vh] overflow-y-auto p-6 transition-all duration-300">
                     <div class="flex items-center justify-between mb-4">
                         <h3 class="text-lg font-semibold text-gray-800">
                             <i class="fas fa-route text-blue-600 mr-2"></i>
@@ -456,6 +456,15 @@
                             <p id="estimatedPrice" class="text-lg font-bold text-gray-800 mt-1">-- VNĐ</p>
                         </div>
                     </div>
+                    
+                    <!-- Confirm Button -->
+                    <div class="mt-6 pt-4 border-t border-gray-200">
+                        <button id="confirmTripDetails" 
+                                class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg transition duration-300 transform hover:scale-105 shadow-lg">
+                            <i class="fas fa-check mr-2"></i>
+                            Xác nhận thông tin chuyến đi
+                        </button>
+                    </div>
                     </div> <!-- End tripDetails overlay -->
                     
                     <!-- Map Info -->
@@ -499,10 +508,6 @@
                             class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-8 rounded-lg text-lg transition duration-300 transform hover:scale-105 shadow-lg">
                         <i class="fas fa-car mr-2"></i>
                         Đặt xe ngay
-                    </button>
-                    <button onclick="testNavigation()" 
-                            class="mt-2 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg">
-                        Test Navigation
                     </button>
                 </div>
             </div>

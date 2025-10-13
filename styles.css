@@ -802,3 +802,347 @@ axi Booking Demo */
 .suggestion-item:hover {
     background: linear-gradient(90deg, rgba(59, 130, 246, 0.05), rgba(59, 130, 246, 0.02));
 }
+
+/* ==============================================
+   INVOICE PRINT STYLES
+   ============================================== */
+
+/* Payment method selection styles */
+.payment-option {
+    transition: all 0.3s ease;
+}
+
+.payment-method input[type="radio"]:checked + .payment-option {
+    border-color: #3b82f6 !important;
+    background-color: #eff6ff !important;
+    transform: scale(1.05);
+}
+
+/* Invoice table responsive */
+@media (max-width: 768px) {
+    table {
+        font-size: 0.875rem;
+    }
+    
+    table th,
+    table td {
+        padding: 0.5rem !important;
+    }
+}
+
+/* Print styles for invoice */
+@media print {
+    /* Hide elements that shouldn't be printed */
+    header,
+    #backToBooking,
+    #printInvoice,
+    #confirmBooking,
+    #notificationContainer,
+    .no-print {
+        display: none !important;
+    }
+    
+    /* Show only the invoice content */
+    body {
+        background: white;
+        margin: 0;
+        padding: 0;
+    }
+    
+    main {
+        max-width: 100%;
+        padding: 0;
+    }
+    
+    /* Ensure invoice container fits on page */
+    .container {
+        max-width: 100%;
+        padding: 10mm;
+    }
+    
+    /* Remove shadows and borders for clean print */
+    .shadow-xl,
+    .shadow-2xl,
+    .shadow-lg {
+        box-shadow: none !important;
+    }
+    
+    /* Ensure proper page breaks */
+    .bg-white {
+        page-break-inside: avoid;
+    }
+    
+    /* Optimize colors for printing */
+    .bg-gradient-to-r {
+        background: #3b82f6 !important;
+        color: white !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    
+    /* Ensure borders print */
+    .border,
+    .border-2 {
+        border: 1px solid #d1d5db !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    
+    /* Make text readable */
+    body {
+        font-size: 11pt;
+        line-height: 1.5;
+    }
+    
+    /* Hide map on print or make it smaller */
+    #confirmationMap {
+        height: 300px !important;
+        page-break-inside: avoid;
+    }
+    
+    /* Ensure table fits on page */
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        page-break-inside: avoid;
+    }
+    
+    /* Make sure payment icons print */
+    .fas,
+    .fa {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    
+    /* Adjust margins for A4 paper */
+    @page {
+        size: A4;
+        margin: 15mm;
+    }
+    
+    /* Ensure background colors print */
+    * {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    
+    /* Make invoice number stand out */
+    #invoiceNumber {
+        font-size: 16pt;
+        font-weight: bold;
+    }
+    
+    /* Optimize pricing table for print */
+    tbody tr {
+        page-break-inside: avoid;
+    }
+    
+    /* Hide interactive elements */
+    input[type="radio"],
+    .payment-method {
+        display: none !important;
+    }
+    
+    /* Show selected payment method */
+    .payment-method input:checked + .payment-option {
+        display: block !important;
+        border: 2px solid #3b82f6 !important;
+    }
+}
+
+/* Invoice animation on load */
+@keyframes invoiceSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.bg-white.rounded-lg.shadow-2xl {
+    animation: invoiceSlideIn 0.5s ease-out;
+}
+
+/* Hover effects for payment methods */
+.payment-method:hover .payment-option {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Terms and conditions styling */
+.border-l-4 {
+    transition: all 0.3s ease;
+}
+
+.border-l-4:hover {
+    transform: translateX(5px);
+}
+
+/* Invoice total highlight effect */
+#totalAmount {
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Responsive invoice design */
+@media (max-width: 768px) {
+    .bg-gradient-to-r.from-blue-600 {
+        padding: 1rem !important;
+    }
+    
+    .p-8 {
+        padding: 1rem !important;
+    }
+    
+    #invoiceNumber {
+        font-size: 1.25rem !important;
+    }
+}
+
+/* Enhanced Leaflet Popup Styles */
+.leaflet-popup-content-wrapper {
+    border-radius: 12px !important;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3) !important;
+}
+
+.leaflet-popup-content {
+    margin: 12px !important;
+    min-width: 220px !important;
+}
+
+.leaflet-popup-tip {
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* Toll Station Marker Animation */
+.toll-marker {
+    animation: tollPulse 2s infinite;
+}
+
+@keyframes tollPulse {
+    0%, 100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+    50% {
+        transform: scale(1.1);
+        opacity: 0.9;
+    }
+}
+
+/* Speed Limit Display in Popup */
+.speed-limit-badge {
+    background: linear-gradient(135deg, #2563eb, #1d4ed8);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-weight: bold;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    animation: fadeInUp 0.3s ease-out;
+}
+
+/* Detailed popup styles */
+.detailed-popup .leaflet-popup-content-wrapper {
+    border-radius: 12px !important;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3) !important;
+    border: 2px solid #e2e8f0 !important;
+}
+
+.detailed-popup .leaflet-popup-content {
+    margin: 16px !important;
+    min-width: 280px !important;
+    max-width: 320px !important;
+    font-family: 'Inter', sans-serif !important;
+}
+
+.detailed-popup .leaflet-popup-tip {
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.2) !important;
+    border: 2px solid #e2e8f0 !important;
+}
+
+/* Detailed marker animation */
+.detailed-marker .marker-container {
+    transition: all 0.3s ease;
+}
+
+.detailed-marker .marker-container:hover {
+    transform: scale(1.1);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+}
+
+/* Search suggestions enhanced */
+.suggestion-item {
+    transition: all 0.2s ease;
+    border-radius: 8px;
+    margin-bottom: 2px;
+}
+
+.suggestion-item:hover {
+    background: linear-gradient(135deg, #f7fafc, #edf2f7) !important;
+    transform: translateX(4px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+/* Trip Details Form Improvements */
+#tripDetails {
+    transform: scale(0.95);
+    opacity: 0;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    /* Remove border completely */
+    border: none !important;
+}
+
+#tripDetails:not(.hidden) {
+    transform: scale(1);
+    opacity: 1;
+}
+
+/* Blur map behind trip details */
+#map.blurred {
+    filter: blur(2px);
+    transition: filter 0.3s ease;
+}
+
+/* Enhanced trip details styling */
+#tripDetails .bg-gray-50 {
+    background: linear-gradient(135deg, #f8fafc, #f1f5f9) !important;
+    border: 1px solid #e2e8f0;
+    transition: all 0.2s ease;
+}
+
+#tripDetails .bg-gray-50:hover {
+    background: linear-gradient(135deg, #f1f5f9, #e2e8f0) !important;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+/* Booking section highlight */
+.booking-section-highlight {
+    animation: bookingPulse 2s ease-in-out;
+}
+
+@keyframes bookingPulse {
+    0%, 100% {
+        transform: scale(1);
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    50% {
+        transform: scale(1.02);
+        box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+    }
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
