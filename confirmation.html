@@ -6,9 +6,11 @@
     <title>Xác nhận chuyến đi - RadioCar</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="styles.css">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- Mapbox GL JS -->
+    <script src='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js'></script>
+    <link href='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css' rel='stylesheet' />
+    <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body class="bg-gray-50">
     <!-- Header -->
@@ -96,7 +98,7 @@
                     
                     <!-- Map Container -->
                     <div class="relative">
-                        <div id="confirmationMap" class="w-full h-[600px] rounded-xl border-2 border-gray-300 shadow-2xl"></div>
+                        <div id="map" class="w-full h-[600px] rounded-xl border-2 border-gray-300 shadow-2xl"></div>
                         
                         <!-- Traffic Info Overlay -->
                         <div id="trafficInfoOverlay" class="hidden absolute top-4 left-4 bg-white/95 backdrop-blur-md rounded-xl shadow-2xl border-2 border-red-500 p-5 max-w-sm z-[1000]">
@@ -134,396 +136,273 @@
                     </div>
                 </div>
                 
-                <!-- Customer Information Section -->
-                <div class="mb-8 pb-6 border-b-2 border-gray-200">
-                    <h2 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
-                        <i class="fas fa-user-circle text-blue-600 mr-3 text-2xl"></i>
-                        Thông tin khách hàng
-                    </h2>
-                    <div class="grid md:grid-cols-2 gap-6">
-                        <div>
-                            <label class="block text-sm font-semibold text-gray-600 mb-2">Họ và tên *</label>
-                            <input type="text" id="customerName" 
-                                   class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                   placeholder="Nhập họ và tên">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-semibold text-gray-600 mb-2">Số điện thoại *</label>
-                            <input type="tel" id="customerPhone" 
-                                   class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                   placeholder="Nhập số điện thoại">
-                        </div>
-                    </div>
-                </div>
 
-                <!-- Trip Details Section -->
-                <div class="mb-8 pb-8 border-b-2 border-gray-200">
-                    <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
-                        <i class="fas fa-route text-green-600 mr-3 text-3xl"></i>
-                        Chi tiết chuyến đi
-                    </h2>
-                    
-                    <!-- Pickup and Dropoff Locations - Enhanced Size -->
-                    <div class="bg-gradient-to-br from-green-50 via-blue-50 to-indigo-50 p-8 rounded-xl mb-6 shadow-lg border-2 border-blue-200">
-                        <div class="space-y-6">
-                            <!-- Pickup Location -->
-                            <div class="flex items-start space-x-5 bg-white p-5 rounded-lg shadow-md hover:shadow-xl transition-shadow">
-                                <div class="bg-gradient-to-br from-green-500 to-green-600 text-white rounded-full w-16 h-16 flex items-center justify-center font-bold flex-shrink-0 shadow-lg text-2xl">
-                                    A
-                                </div>
-                                <div class="flex-1">
-                                    <p class="text-sm font-bold text-green-700 mb-2 uppercase tracking-wide">📍 Điểm đón khách</p>
-                                    <p id="pickupLocationDisplay" class="text-xl font-bold text-gray-800 leading-relaxed">--</p>
-                                    <p class="text-sm text-gray-500 mt-2" id="pickupCoords">Tọa độ: --</p>
-                        </div>
-                            </div>
-                            
-                            <!-- Journey Arrow -->
-                            <div class="flex items-center justify-center">
-                                <div class="flex flex-col items-center">
-                                    <div class="border-l-4 border-dashed border-blue-400 h-12"></div>
-                                    <div class="bg-blue-500 text-white rounded-full p-3 shadow-lg">
-                                        <i class="fas fa-arrow-down text-xl"></i>
-                                    </div>
-                                    <div class="border-l-4 border-dashed border-blue-400 h-12"></div>
-                                </div>
-                            </div>
-                            
-                            <!-- Dropoff Location -->
-                            <div class="flex items-start space-x-5 bg-white p-5 rounded-lg shadow-md hover:shadow-xl transition-shadow">
-                                <div class="bg-gradient-to-br from-red-500 to-red-600 text-white rounded-full w-16 h-16 flex items-center justify-center font-bold flex-shrink-0 shadow-lg text-2xl">
-                                    B
-                                </div>
-                                <div class="flex-1">
-                                    <p class="text-sm font-bold text-red-700 mb-2 uppercase tracking-wide">🚩 Điểm đến</p>
-                                    <p id="dropoffLocationDisplay" class="text-xl font-bold text-gray-800 leading-relaxed">--</p>
-                                    <p class="text-sm text-gray-500 mt-2" id="dropoffCoords">Tọa độ: --</p>
-                            </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Trip Statistics - Large Cards -->
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                        <div class="bg-gradient-to-br from-blue-500 to-blue-600 text-white p-6 rounded-xl shadow-lg hover:shadow-2xl transition-all transform hover:-translate-y-1">
-                            <div class="flex items-center justify-between mb-4">
-                                <i class="fas fa-route text-4xl opacity-80"></i>
-                                <div class="bg-white/20 px-4 py-2 rounded-full">
-                                    <span class="text-sm font-semibold">km</span>
-                                </div>
-                            </div>
-                            <p class="text-sm font-semibold opacity-90 mb-2">Khoảng cách</p>
-                            <p id="distance" class="text-4xl font-bold">-- km</p>
-                            <p class="text-xs mt-2 opacity-75" id="distanceNote">Đường đi tối ưu</p>
-                        </div>
-                        
-                        <div class="bg-gradient-to-br from-green-500 to-green-600 text-white p-6 rounded-xl shadow-lg hover:shadow-2xl transition-all transform hover:-translate-y-1">
-                            <div class="flex items-center justify-between mb-4">
-                                <i class="fas fa-clock text-4xl opacity-80"></i>
-                                <div class="bg-white/20 px-4 py-2 rounded-full">
-                                    <span class="text-sm font-semibold">phút</span>
-                                </div>
-                            </div>
-                            <p class="text-sm font-semibold opacity-90 mb-2">Thời gian dự kiến</p>
-                            <p id="duration" class="text-4xl font-bold">-- phút</p>
-                            <p class="text-xs mt-2 opacity-75" id="durationNote">Chưa tính tắc đường</p>
-                        </div>
-                        
-                        <div class="bg-gradient-to-br from-yellow-500 to-orange-500 text-white p-6 rounded-xl shadow-lg hover:shadow-2xl transition-all transform hover:-translate-y-1">
-                            <div class="flex items-center justify-between mb-4">
-                                <i class="fas fa-tachometer-alt text-4xl opacity-80"></i>
-                                <div class="bg-white/20 px-4 py-2 rounded-full">
-                                    <span class="text-sm font-semibold">km/h</span>
-                                </div>
-                            </div>
-                            <p class="text-sm font-semibold opacity-90 mb-2">Tốc độ trung bình</p>
-                            <p id="avgSpeed" class="text-4xl font-bold">-- km/h</p>
-                            <p class="text-xs mt-2 opacity-75" id="speedNote">Tốc độ ước tính</p>
-                        </div>
-                    </div>
 
-                    <!-- Current Conditions - Enhanced -->
-                    <div id="conditionsAlert" class="mb-6 p-6 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 rounded-xl border-2 border-blue-300 shadow-lg">
-                        <div class="flex items-center space-x-3 mb-5">
-                            <div class="bg-blue-600 p-3 rounded-full shadow-md">
-                                <i class="fas fa-info-circle text-white text-2xl"></i>
-                            </div>
-                            <div>
-                                <h3 class="text-xl font-bold text-gray-800">Điều kiện hiện tại</h3>
-                                <p class="text-sm text-gray-600">Thông tin thời gian thực</p>
-                            </div>
-                        </div>
-                        <div id="conditionsInfo" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                            <!-- Rush Hour Status -->
-                            <div class="bg-white p-5 rounded-xl shadow-md hover:shadow-xl transition-shadow border border-gray-100">
-                                <div class="flex items-center space-x-3 mb-3">
-                                    <span id="rushHourIcon" class="text-4xl">⏰</span>
-                                    <div class="flex-1">
-                                        <p class="text-xs text-gray-500 font-semibold uppercase tracking-wide">Giờ cao điểm</p>
-                                        <p id="rushHourStatus" class="text-base font-bold text-gray-700 mt-1">Đang kiểm tra...</p>
-                                    </div>
-                                </div>
-                                <div class="h-1 bg-gray-200 rounded-full overflow-hidden">
-                                    <div id="rushHourBar" class="h-full bg-gradient-to-r from-green-500 to-red-500 transition-all" style="width: 0%"></div>
-                                </div>
-                            </div>
-                            
-                            <!-- Traffic Status -->
-                            <div class="bg-white p-5 rounded-xl shadow-md hover:shadow-xl transition-shadow border border-gray-100">
-                                <div class="flex items-center space-x-3 mb-3">
-                                    <span id="trafficIcon" class="text-4xl">🚦</span>
-                                    <div class="flex-1">
-                                        <p class="text-xs text-gray-500 font-semibold uppercase tracking-wide">Giao thông</p>
-                                        <p id="trafficStatus" class="text-base font-bold text-gray-700 mt-1">Đang kiểm tra...</p>
-                                    </div>
-                                </div>
-                                <div class="h-1 bg-gray-200 rounded-full overflow-hidden">
-                                    <div id="trafficBar" class="h-full bg-gradient-to-r from-green-500 to-red-500 transition-all" style="width: 0%"></div>
-                                </div>
-                            </div>
-                            
-                            <!-- Weather Status -->
-                            <div class="bg-white p-5 rounded-xl shadow-md hover:shadow-xl transition-shadow border border-gray-100">
-                                <div class="flex items-center space-x-3 mb-3">
-                                    <span id="weatherIcon" class="text-4xl">🌤️</span>
-                                    <div class="flex-1">
-                                        <p class="text-xs text-gray-500 font-semibold uppercase tracking-wide">Thời tiết</p>
-                                        <p id="weatherStatus" class="text-base font-bold text-gray-700 mt-1">Đang kiểm tra...</p>
-                                    </div>
-                                </div>
-                                <p id="weatherDetails" class="text-xs text-gray-500 mt-2">Nhiệt độ: --°C | Độ ẩm: --%</p>
-                            </div>
-                            
-                            <!-- Location Status -->
-                            <div class="bg-white p-5 rounded-xl shadow-md hover:shadow-xl transition-shadow border border-gray-100">
-                                <div class="flex items-center space-x-3 mb-3">
-                                    <span id="locationIcon" class="text-4xl">📍</span>
-                                    <div class="flex-1">
-                                        <p class="text-xs text-gray-500 font-semibold uppercase tracking-wide">Khu vực</p>
-                                        <p id="locationStatus" class="text-base font-bold text-gray-700 mt-1">Đang kiểm tra...</p>
-                                    </div>
-                                </div>
-                                <p id="locationDetails" class="text-xs text-gray-500 mt-2">Vị trí: --</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Traffic Congestion Warning - Enhanced -->
-                    <div id="trafficCongestionDetails" class="hidden mb-6">
-                        <div class="bg-gradient-to-r from-red-50 to-orange-50 border-2 border-red-400 rounded-xl p-6 shadow-lg">
-                            <div class="flex items-center space-x-3 mb-4">
-                                <div class="bg-red-600 p-3 rounded-full shadow-md animate-pulse">
-                                    <i class="fas fa-exclamation-triangle text-white text-2xl"></i>
-                                </div>
-                                <div>
-                                    <h3 class="text-xl font-bold text-red-800">Cảnh báo tắc đường</h3>
-                                    <p class="text-sm text-red-600">Phát hiện đoạn đường có tình trạng tắc nghẽn</p>
-                                </div>
-                            </div>
-                        <div id="congestionInfo" class="space-y-3">
-                            <!-- Dynamic congestion info will be inserted here -->
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Additional Trip Information -->
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                        <div class="bg-purple-50 border-2 border-purple-200 rounded-lg p-4 text-center">
-                            <i class="fas fa-map-signs text-purple-600 text-3xl mb-2"></i>
-                            <p class="text-xs text-gray-600 font-semibold mb-1">Loại đường</p>
-                            <p id="roadType" class="text-sm font-bold text-gray-800">Đường thành phố</p>
-                        </div>
-                        <div class="bg-teal-50 border-2 border-teal-200 rounded-lg p-4 text-center">
-                            <i class="fas fa-gas-pump text-teal-600 text-3xl mb-2"></i>
-                            <p class="text-xs text-gray-600 font-semibold mb-1">Ước tính nhiên liệu</p>
-                            <p id="fuelEstimate" class="text-sm font-bold text-gray-800">-- lít</p>
-                        </div>
-                        <div class="bg-pink-50 border-2 border-pink-200 rounded-lg p-4 text-center">
-                            <i class="fas fa-leaf text-pink-600 text-3xl mb-2"></i>
-                            <p class="text-xs text-gray-600 font-semibold mb-1">CO₂ phát thải</p>
-                            <p id="co2Estimate" class="text-sm font-bold text-gray-800">-- kg</p>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Pricing Breakdown Section -->
+                <!-- Pricing Section -->
                 <div class="mb-8">
                     <h2 class="text-xl font-bold text-gray-800 mb-6 flex items-center">
                         <i class="fas fa-receipt text-yellow-600 mr-3 text-2xl"></i>
-                        Chi tiết giá cước
+                        Giá tiền chuyến đi
                     </h2>
 
-                    <!-- Pricing Table -->
-                    <div class="bg-gray-50 rounded-lg p-6">
-                        <table class="w-full">
-                            <thead>
-                                <tr class="border-b-2 border-gray-300">
-                                    <th class="text-left py-3 text-sm font-bold text-gray-700">HẠNG MỤC</th>
-                                    <th class="text-center py-3 text-sm font-bold text-gray-700">SỐ LƯỢNG</th>
-                                    <th class="text-right py-3 text-sm font-bold text-gray-700">ĐƠN GIÁ</th>
-                                    <th class="text-right py-3 text-sm font-bold text-gray-700">THÀNH TIỀN</th>
-                                </tr>
-                            </thead>
-                            <tbody class="text-sm">
-                                <tr class="border-b border-gray-200">
-                                    <td class="py-4">
-                                        <div class="flex items-center space-x-2">
-                                            <i class="fas fa-car text-blue-600"></i>
-                                            <span class="font-semibold">Phí khởi đầu</span>
-                                        </div>
-                                    </td>
-                                    <td class="text-center py-4">1</td>
-                                    <td class="text-right py-4" id="baseFeeAmount">15,000 VNĐ</td>
-                                    <td class="text-right py-4 font-bold" id="baseFeeTotal">15,000 VNĐ</td>
-                                </tr>
-                                <tr class="border-b border-gray-200">
-                                    <td class="py-4">
-                                        <div class="flex items-center space-x-2">
-                                            <i class="fas fa-route text-green-600"></i>
-                                            <span class="font-semibold">Cước theo km</span>
-                                        </div>
-                                    </td>
-                                    <td class="text-center py-4"><span id="distanceQty">-- km</span></td>
-                                    <td class="text-right py-4">15,000 VNĐ/km</td>
-                                    <td class="text-right py-4 font-bold" id="distanceFeeTotal">-- VNĐ</td>
-                                </tr>
-                                <tr class="border-b border-gray-200">
-                                    <td class="py-4">
-                                        <div class="flex items-center space-x-2">
-                                            <i class="fas fa-clock text-orange-600"></i>
-                                            <span class="font-semibold">Thời gian chờ</span>
-                                        </div>
-                                    </td>
-                                    <td class="text-center py-4"><span id="waitTimeQty">0 phút</span></td>
-                                    <td class="text-right py-4">5,000 VNĐ/phút</td>
-                                    <td class="text-right py-4 font-bold" id="waitTimeFeeTotal">0 VNĐ</td>
-                                </tr>
-                                <tr id="rushHourFeeRow" class="border-b border-gray-200 hidden">
-                                    <td class="py-4">
-                                        <div class="flex items-center space-x-2">
-                                            <i class="fas fa-exclamation-circle text-orange-600"></i>
-                                            <span class="font-semibold">Phụ phí giờ cao điểm</span>
-                                        </div>
-                                    </td>
-                                    <td class="text-center py-4">8%</td>
-                                    <td class="text-right py-4">--</td>
-                                    <td class="text-right py-4 font-bold text-orange-600" id="rushHourFeeTotal">-- VNĐ</td>
-                                </tr>
-                                <tr id="weatherFeeRow" class="border-b border-gray-200 hidden">
-                                    <td class="py-4">
-                                        <div class="flex items-center space-x-2">
-                                            <i class="fas fa-cloud-rain text-blue-600"></i>
-                                            <span class="font-semibold">Phụ phí thời tiết xấu</span>
-                                        </div>
-                                    </td>
-                                    <td class="text-center py-4">5%</td>
-                                    <td class="text-right py-4">--</td>
-                                    <td class="text-right py-4 font-bold text-blue-600" id="weatherFeeTotal">-- VNĐ</td>
-                                </tr>
-                            </tbody>
-                            <tfoot>
-                                <tr class="border-t-2 border-gray-400">
-                                    <td colspan="3" class="py-4 text-right font-bold text-gray-700">TỔNG PHỤ:</td>
-                                    <td class="py-4 text-right font-bold text-lg" id="subtotalAmount">-- VNĐ</td>
-                                </tr>
-                                <tr class="border-b border-gray-200">
-                                    <td colspan="3" class="py-3 text-right text-gray-600">VAT (8%):</td>
-                                    <td class="py-3 text-right font-semibold" id="vatAmount">-- VNĐ</td>
-                                </tr>
-                                <tr class="bg-gradient-to-r from-yellow-50 to-orange-50 border-2 border-yellow-400">
-                                    <td colspan="3" class="py-5 text-right font-bold text-xl text-gray-800">
-                                        <i class="fas fa-dollar-sign text-yellow-600 mr-2"></i>
-                                        TỔNG CỘNG:
-                                    </td>
-                                    <td class="py-5 text-right font-bold text-2xl text-blue-600" id="totalAmount">-- VNĐ</td>
-                                </tr>
-                            </tfoot>
-                        </table>
-                    </div>
-                </div>
+                    <!-- Simple Pricing Display -->
+                    <div class="bg-gradient-to-r from-yellow-50 to-orange-50 border-2 border-yellow-300 rounded-xl p-6">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <!-- Pricing Breakdown -->
+                            <div class="space-y-3">
+                                <div class="flex justify-between items-center py-2 border-b border-gray-200">
+                                    <span class="text-sm text-gray-600">Phí khởi đầu:</span>
+                                    <span id="baseFeeTotal" class="font-semibold">15,000 VNĐ</span>
+                                </div>
+                                <div class="flex justify-between items-center py-2 border-b border-gray-200">
+                                    <span class="text-sm text-gray-600">Cước theo km:</span>
+                                    <span id="distanceFeeTotal" class="font-semibold">-- VNĐ</span>
+                                </div>
+                                <div class="flex justify-between items-center py-2 border-b border-gray-200">
+                                    <span class="text-sm text-gray-600">Thời gian chờ:</span>
+                                    <span id="waitTimeFeeTotal" class="font-semibold">0 VNĐ</span>
+                                </div>
+                                <div id="rushHourFeeRow" class="flex justify-between items-center py-2 border-b border-gray-200 hidden">
+                                    <span class="text-sm text-gray-600">Phụ phí giờ cao điểm:</span>
+                                    <span id="rushHourFeeTotal" class="font-semibold text-orange-600">-- VNĐ</span>
+                                </div>
+                                <div class="flex justify-between items-center py-2 border-b border-gray-200">
+                                    <span class="text-sm text-gray-600">VAT (8%):</span>
+                                    <span id="vatAmount" class="font-semibold">-- VNĐ</span>
+                                </div>
+                            </div>
 
-                <!-- Notes Section -->
-                <div class="mb-8">
-                    <label class="block text-sm font-bold text-gray-700 mb-3">
-                        <i class="fas fa-sticky-note text-yellow-600 mr-2"></i>
-                        Ghi chú cho tài xế (tùy chọn)
-                    </label>
-                    <textarea id="notes" rows="3" 
-                              class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                              placeholder="Ví dụ: Gọi trước 5 phút, đón tại cổng sau, mang theo hành lý..."></textarea>
-                    </div>
-
-                <!-- Payment Method -->
-                <div class="mb-8 pb-6 border-b-2 border-gray-200">
-                    <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
-                        <i class="fas fa-credit-card text-purple-600 mr-2 text-xl"></i>
-                        Hình thức thanh toán
-                        </h3>
-                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-                        <label class="payment-method cursor-pointer">
-                            <input type="radio" name="paymentMethod" value="cash" class="hidden" checked>
-                            <div class="border-2 border-gray-300 rounded-lg p-4 text-center hover:border-blue-500 transition-all payment-option">
-                                <i class="fas fa-money-bill-wave text-3xl text-green-600 mb-2"></i>
-                                <p class="text-sm font-semibold">Tiền mặt</p>
+                            <!-- Total Price -->
+                            <div class="text-center">
+                                <div class="bg-white rounded-lg p-6 border-2 border-yellow-400">
+                                    <p class="text-sm text-gray-600 mb-2">TỔNG CỘNG</p>
+                                    <p id="totalAmount" class="text-4xl font-bold text-yellow-600">-- VNĐ</p>
+                                    <p class="text-xs text-gray-500 mt-2">Giá có thể thay đổi</p>
+                                </div>
                             </div>
-                        </label>
-                        <label class="payment-method cursor-pointer">
-                            <input type="radio" name="paymentMethod" value="card" class="hidden">
-                            <div class="border-2 border-gray-300 rounded-lg p-4 text-center hover:border-blue-500 transition-all payment-option">
-                                <i class="fas fa-credit-card text-3xl text-blue-600 mb-2"></i>
-                                <p class="text-sm font-semibold">Thẻ ngân hàng</p>
-                            </div>
-                        </label>
-                        <label class="payment-method cursor-pointer">
-                            <input type="radio" name="paymentMethod" value="momo" class="hidden">
-                            <div class="border-2 border-gray-300 rounded-lg p-4 text-center hover:border-blue-500 transition-all payment-option">
-                                <i class="fas fa-wallet text-3xl text-pink-600 mb-2"></i>
-                                <p class="text-sm font-semibold">MoMo</p>
-                            </div>
-                        </label>
-                        <label class="payment-method cursor-pointer">
-                            <input type="radio" name="paymentMethod" value="banking" class="hidden">
-                            <div class="border-2 border-gray-300 rounded-lg p-4 text-center hover:border-blue-500 transition-all payment-option">
-                                <i class="fas fa-university text-3xl text-indigo-600 mb-2"></i>
-                                <p class="text-sm font-semibold">Banking</p>
                         </div>
-                        </label>
                     </div>
                 </div>
 
-                <!-- Terms and Conditions -->
-                <div class="bg-gray-50 border-l-4 border-blue-600 p-5 mb-8">
-                    <h4 class="font-bold text-gray-800 mb-3 flex items-center">
-                        <i class="fas fa-file-contract text-blue-600 mr-2"></i>
-                        Điều khoản và điều kiện
-                    </h4>
-                    <ul class="text-xs text-gray-600 space-y-2">
-                        <li class="flex items-start">
-                            <i class="fas fa-check-circle text-green-600 mr-2 mt-0.5"></i>
-                            <span>Giá cước trên chỉ mang tính chất tham khảo, giá thực tế tính theo đồng hồ trên xe.</span>
-                        </li>
-                        <li class="flex items-start">
-                            <i class="fas fa-check-circle text-green-600 mr-2 mt-0.5"></i>
-                            <span>Khách hàng có quyền hủy chuyến trong vòng 3 phút sau khi đặt mà không mất phí.</span>
-                        </li>
-                        <li class="flex items-start">
-                            <i class="fas fa-check-circle text-green-600 mr-2 mt-0.5"></i>
-                            <span>Thời gian chờ miễn phí: 5 phút. Sau đó tính 5,000đ/phút.</span>
-                        </li>
-                        <li class="flex items-start">
-                            <i class="fas fa-check-circle text-green-600 mr-2 mt-0.5"></i>
-                            <span>Phụ phí tối đa: Giờ cao điểm (8%), Thời tiết xấu (5-8%), Tắc đường (3-9%).</span>
-                        </li>
-                        <li class="flex items-start">
-                            <i class="fas fa-check-circle text-green-600 mr-2 mt-0.5"></i>
-                            <span>Phí trạm thu phí KHÔNG bao gồm trong giá cước, khách tự thanh toán trực tiếp tại trạm.</span>
-                        </li>
-                        <li class="flex items-start">
-                            <i class="fas fa-check-circle text-green-600 mr-2 mt-0.5"></i>
-                            <span>Vui lòng giữ hóa đơn này để đối chiếu khi có thắc mắc.</span>
-                        </li>
-                    </ul>
+                <!-- Traffic Conditions Section -->
+                <div class="mb-8 pb-8 border-b-2 border-gray-200">
+                    <h2 class="text-xl font-bold text-gray-800 mb-6 flex items-center">
+                        <i class="fas fa-traffic-light text-red-600 mr-3 text-2xl"></i>
+                        Tình trạng giao thông
+                    </h2>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <!-- Current Traffic Status -->
+                        <div class="bg-red-50 border-2 border-red-200 rounded-lg p-6">
+                            <h3 class="font-bold text-gray-800 mb-4 flex items-center">
+                                <i class="fas fa-car text-red-600 mr-2"></i>
+                                Tình trạng hiện tại
+                            </h3>
+                            <div class="space-y-3">
+                                <div class="flex justify-between items-center py-2 border-b border-red-100">
+                                    <span class="text-sm text-gray-600">Mức độ tắc đường:</span>
+                                    <span id="trafficLevel" class="font-semibold text-red-600">Đang kiểm tra...</span>
+                                </div>
+                                <div class="flex justify-between items-center py-2 border-b border-red-100">
+                                    <span class="text-sm text-gray-600">Tốc độ hiện tại:</span>
+                                    <span id="currentSpeed" class="font-semibold">-- km/h</span>
+                                </div>
+                                <div class="flex justify-between items-center py-2 border-b border-red-100">
+                                    <span class="text-sm text-gray-600">Tốc độ bình thường:</span>
+                                    <span id="normalSpeed" class="font-semibold">-- km/h</span>
+                                </div>
+                                <div class="flex justify-between items-center py-2">
+                                    <span class="text-sm text-gray-600">Thời gian ước tính:</span>
+                                    <span id="estimatedTime" class="font-semibold text-blue-600">-- phút</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Weather Impact -->
+                        <div class="bg-blue-50 border-2 border-blue-200 rounded-lg p-6">
+                            <h3 class="font-bold text-gray-800 mb-4 flex items-center">
+                                <i class="fas fa-cloud-sun text-blue-600 mr-2"></i>
+                                Ảnh hưởng thời tiết
+                            </h3>
+                            <div class="space-y-3">
+                                <div class="flex justify-between items-center py-2 border-b border-blue-100">
+                                    <span class="text-sm text-gray-600">Thời tiết:</span>
+                                    <span id="weatherCondition" class="font-semibold text-blue-600">Đang kiểm tra...</span>
+                                </div>
+                                <div class="flex justify-between items-center py-2 border-b border-blue-100">
+                                    <span class="text-sm text-gray-600">Nhiệt độ:</span>
+                                    <span id="temperature" class="font-semibold">--°C</span>
+                                </div>
+                                <div class="flex justify-between items-center py-2 border-b border-blue-100">
+                                    <span class="text-sm text-gray-600">Độ ẩm:</span>
+                                    <span id="humidity" class="font-semibold">--%</span>
+                                </div>
+                                <div class="flex justify-between items-center py-2">
+                                    <span class="text-sm text-gray-600">Tác động:</span>
+                                    <span id="weatherImpact" class="font-semibold text-orange-600">Bình thường</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
+                </div>
+
+                <!-- Route Information Section -->
+                <div class="mb-8 pb-8 border-b-2 border-gray-200">
+                    <h2 class="text-xl font-bold text-gray-800 mb-6 flex items-center">
+                        <i class="fas fa-route text-green-600 mr-3 text-2xl"></i>
+                        Thông tin lộ trình
+                    </h2>
+                    
+                    <!-- Route Statistics -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                        <div class="bg-blue-50 border-2 border-blue-200 rounded-lg p-4 text-center">
+                            <i class="fas fa-route text-blue-600 text-2xl mb-2"></i>
+                            <p class="text-sm text-gray-600 mb-1">Khoảng cách</p>
+                            <p id="distance" class="text-2xl font-bold text-blue-600">-- km</p>
+                        </div>
+                        
+                        <div class="bg-green-50 border-2 border-green-200 rounded-lg p-4 text-center">
+                            <i class="fas fa-clock text-green-600 text-2xl mb-2"></i>
+                            <p class="text-sm text-gray-600 mb-1">Thời gian</p>
+                            <p id="duration" class="text-2xl font-bold text-green-600">-- phút</p>
+                        </div>
+                        
+                        <div class="bg-yellow-50 border-2 border-yellow-200 rounded-lg p-4 text-center">
+                            <i class="fas fa-tachometer-alt text-yellow-600 text-2xl mb-2"></i>
+                            <p class="text-sm text-gray-600 mb-1">Tốc độ TB</p>
+                            <p id="avgSpeed" class="text-2xl font-bold text-yellow-600">-- km/h</p>
+                        </div>
+                    </div>
+
+                    <!-- Turn-by-Turn Directions -->
+                    <div class="mb-6">
+                        <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
+                            <i class="fas fa-directions text-blue-600 mr-2"></i>
+                            Hướng dẫn lộ trình chi tiết
+                        </h3>
+                        <div id="turnByTurnDirections" class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                            <div class="text-center text-gray-500 py-8">
+                                <i class="fas fa-route text-4xl mb-3"></i>
+                                <p>Đang tính toán lộ trình...</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Route Quality Assessment -->
+                    <div class="bg-gradient-to-br from-gray-50 to-blue-50 rounded-xl p-6 border-2 border-gray-200">
+                        <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
+                            <i class="fas fa-chart-line text-orange-600 mr-2"></i>
+                            Đánh giá chất lượng tuyến đường
+                        </h3>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div class="text-center">
+                                <div class="text-3xl font-bold text-green-600" id="routeScore">--</div>
+                                <div class="text-sm text-gray-600">Điểm chất lượng</div>
+                            </div>
+                            <div class="text-center">
+                                <div class="text-3xl font-bold text-blue-600" id="trafficScore">--</div>
+                                <div class="text-sm text-gray-600">Mức độ tắc đường</div>
+                            </div>
+                            <div class="text-center">
+                                <div class="text-3xl font-bold text-purple-600" id="safetyScore">--</div>
+                                <div class="text-sm text-gray-600">Mức độ an toàn</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Customer Information Form -->
+                <div id="customerInfoForm" class="mb-8 pb-8 border-b-2 border-gray-200">
+                    <h2 class="text-xl font-bold text-gray-800 mb-6 flex items-center">
+                        <i class="fas fa-user-edit text-purple-600 mr-3 text-2xl"></i>
+                        Thông tin bổ sung
+                    </h2>
+                    
+                    <div class="bg-gradient-to-br from-purple-50 to-blue-50 rounded-xl p-6 border-2 border-purple-200">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <!-- Customer Name -->
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                    <i class="fas fa-user text-purple-600 mr-1"></i>
+                                    Họ và tên <span class="text-red-500">*</span>
+                                </label>
+                                <input type="text" id="customerName" required
+                                       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                       placeholder="Nhập họ và tên đầy đủ">
+                            </div>
+                            
+                            <!-- Phone Number -->
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                    <i class="fas fa-phone text-purple-600 mr-1"></i>
+                                    Số điện thoại <span class="text-red-500">*</span>
+                                </label>
+                                <input type="tel" id="customerPhone" required
+                                       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                       placeholder="Nhập số điện thoại (VD: 0123456789)">
+                            </div>
+                            
+                            <!-- Email -->
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                    <i class="fas fa-envelope text-purple-600 mr-1"></i>
+                                    Email (tùy chọn)
+                                </label>
+                                <input type="email" id="customerEmail"
+                                       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                       placeholder="Nhập email của bạn">
+                            </div>
+                            
+                            <!-- Preferred Contact Time -->
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                    <i class="fas fa-clock text-purple-600 mr-1"></i>
+                                    Thời gian liên hệ
+                                </label>
+                                <select id="contactTime" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                                    <option value="">Chọn thời gian</option>
+                                    <option value="morning">Sáng (6:00 - 12:00)</option>
+                                    <option value="afternoon">Chiều (12:00 - 18:00)</option>
+                                    <option value="evening">Tối (18:00 - 22:00)</option>
+                                    <option value="anytime">Bất kỳ lúc nào</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <!-- Special Instructions -->
+                        <div class="mt-6">
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                <i class="fas fa-sticky-note text-purple-600 mr-1"></i>
+                                Ghi chú đặc biệt
+                            </label>
+                            <textarea id="specialInstructions" rows="3" 
+                                      class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                      placeholder="Ví dụ: Gọi trước 5 phút, đón tại cổng sau, mang theo hành lý, có trẻ em..."></textarea>
+                        </div>
+                        
+                        <!-- Emergency Contact -->
+                        <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                    <i class="fas fa-user-friends text-purple-600 mr-1"></i>
+                                    Liên hệ khẩn cấp
+                                </label>
+                                <input type="text" id="emergencyContact"
+                                       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                       placeholder="Tên người liên hệ khẩn cấp">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                    <i class="fas fa-phone-alt text-purple-600 mr-1"></i>
+                                    Số điện thoại khẩn cấp
+                                </label>
+                                <input type="tel" id="emergencyPhone"
+                                       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                       placeholder="Số điện thoại liên hệ khẩn cấp">
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
                 <!-- Action Buttons -->
                 <div class="flex flex-col md:flex-row gap-4">

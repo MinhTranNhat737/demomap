@@ -1,4 +1,4 @@
-// Confirmation Page - RadioCar Taxi
+// Confirmation Page - RadioCar Taxi with Mapbox + TomTom Traffic API
 // Displays trip details with traffic congestion information
 
 class ConfirmationPage {
@@ -14,11 +14,14 @@ class ConfirmationPage {
         this.speedLimits = [];
         this.routeBounds = null;
         
+        // Mapbox configuration
+        this.mapboxAccessToken = 'pk.eyJ1Ijoic3ViaGFtcHJlZXQiLCJhIjoiY2toY2IwejF1MDdodzJxbWRuZHAweDV6aiJ9.Ys8MP5kVTk5P9V2TDvnuDg';
+        
         this.init();
     }
 
     init() {
-        console.log('Initializing Confirmation Page...');
+        console.log('Initializing Confirmation Page with Mapbox...');
         this.generateInvoiceNumber();
         this.setInvoiceDateTime();
         this.loadTripData();
@@ -98,1442 +101,1238 @@ class ConfirmationPage {
                     dropoff: this.dropoffLocation.name
                 });
             } else {
-                // If no URL params, redirect back to main page
-                this.showNotification('⚠️ Vui lòng chọn điểm đón và điểm đến trước', 'warning');
-                setTimeout(() => {
-                    window.location.href = 'index.html';
-                }, 2000);
+                // Fallback to localStorage
+                const savedState = localStorage.getItem('taxiAppState');
+                if (savedState) {
+                    const state = JSON.parse(savedState);
+                    this.pickupLocation = state.pickupLocation;
+                    this.dropoffLocation = state.dropoffLocation;
+                    
+                    console.log('Trip data loaded from localStorage:', {
+                        pickup: this.pickupLocation?.name,
+                        dropoff: this.dropoffLocation?.name
+                    });
+                } else {
+                    // Default locations for demo
+                    this.pickupLocation = {
+                        coords: [105.8342, 21.0285],
+                        name: 'Hồ Gươm, Hà Nội'
+                    };
+                    this.dropoffLocation = {
+                        coords: [105.8067, 21.2211],
+                        name: 'Sân bay Nội Bài'
+                    };
+                }
             }
+            
+            // Update UI with trip data
+            this.updateTripInfo();
+            
         } catch (error) {
-            console.error('Failed to load trip data:', error);
-            this.showNotification('❌ Không thể tải dữ liệu chuyến đi', 'error');
-            setTimeout(() => {
-                window.location.href = 'index.html';
-            }, 2000);
+            console.error('Error loading trip data:', error);
+            // Set default locations
+            this.pickupLocation = {
+                coords: [105.8342, 21.0285],
+                name: 'Hồ Gươm, Hà Nội'
+            };
+            this.dropoffLocation = {
+                coords: [105.8067, 21.2211],
+                name: 'Sân bay Nội Bài'
+            };
+            this.updateTripInfo();
+        }
+    }
+
+    updateTripInfo() {
+        // Update pickup location display
+        const pickupElement = document.getElementById('pickupLocationDisplay');
+        const pickupCoordsElement = document.getElementById('pickupCoords');
+        if (pickupElement && this.pickupLocation) {
+            pickupElement.textContent = this.pickupLocation.name || 'Điểm đón';
+        }
+        if (pickupCoordsElement && this.pickupLocation) {
+            pickupCoordsElement.textContent = `Tọa độ: ${this.pickupLocation.coords[1].toFixed(6)}, ${this.pickupLocation.coords[0].toFixed(6)}`;
+        }
+
+        // Update dropoff location display
+        const dropoffElement = document.getElementById('dropoffLocationDisplay');
+        const dropoffCoordsElement = document.getElementById('dropoffCoords');
+        if (dropoffElement && this.dropoffLocation) {
+            dropoffElement.textContent = this.dropoffLocation.name || 'Điểm đến';
+        }
+        if (dropoffCoordsElement && this.dropoffLocation) {
+            dropoffCoordsElement.textContent = `Tọa độ: ${this.dropoffLocation.coords[1].toFixed(6)}, ${this.dropoffLocation.coords[0].toFixed(6)}`;
         }
     }
 
     initializeMap() {
-        // Initialize map centered on the route
-        const centerLat = this.pickupLocation ? this.pickupLocation.lat : 21.0285;
-        const centerLng = this.pickupLocation ? this.pickupLocation.lng : 105.8542;
+        console.log('Initializing Mapbox map for confirmation page...');
         
-        this.map = L.map('confirmationMap').setView([centerLat, centerLng], 13);
+        // Set Mapbox access token
+        mapboxgl.accessToken = this.mapboxAccessToken;
+        
+        // Initialize map
+        this.map = new mapboxgl.Map({
+            container: 'map',
+            style: 'mapbox://styles/mapbox/streets-v12',
+            center: this.pickupLocation?.coords || [105.8342, 21.0285],
+            zoom: 12
+        });
 
-        // Add OpenStreetMap tiles
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors'
-        }).addTo(this.map);
+        // Add navigation controls
+        this.map.addControl(new mapboxgl.NavigationControl());
 
-        // Add markers if locations exist
-        if (this.pickupLocation && this.dropoffLocation) {
-            this.addLocationMarkers();
+        // Wait for map to load
+        this.map.on('load', () => {
+            console.log('Mapbox map loaded successfully');
+            this.setupMapLayers();
             this.calculateRoute();
-        }
+        });
     }
 
-    addLocationMarkers() {
-        // Add pickup marker
-        if (this.pickupLocation) {
-            const pickupIcon = L.divIcon({
-                html: '<div style="background: #10b981; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">A</div>',
-                className: 'custom-marker',
-                iconSize: [30, 30],
-                iconAnchor: [15, 15]
-            });
-            
-            L.marker([this.pickupLocation.lat, this.pickupLocation.lng], { icon: pickupIcon })
-                .addTo(this.map)
-                .bindPopup(`<strong>Điểm đón:</strong><br>${this.pickupLocation.name}`);
-        }
+    setupMapLayers() {
+        // Add traffic layer source
+        this.map.addSource('traffic', {
+            type: 'vector',
+            url: 'mapbox://mapbox.mapbox-traffic-v1'
+        });
 
-        // Add dropoff marker
-        if (this.dropoffLocation) {
-            const dropoffIcon = L.divIcon({
-                html: '<div style="background: #ef4444; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">B</div>',
-                className: 'custom-marker',
-                iconSize: [30, 30],
-                iconAnchor: [15, 15]
-            });
-            
-            L.marker([this.dropoffLocation.lat, this.dropoffLocation.lng], { icon: dropoffIcon })
-                .addTo(this.map)
-                .bindPopup(`<strong>Điểm đến:</strong><br>${this.dropoffLocation.name}`);
-        }
+        // Add traffic layer
+        this.map.addLayer({
+            id: 'traffic-layer',
+            type: 'line',
+            source: 'traffic',
+            'source-layer': 'traffic',
+            paint: {
+                'line-width': 2,
+                'line-color': [
+                    'case',
+                    ['==', ['get', 'congestion'], 'low'], '#4CAF50',
+                    ['==', ['get', 'congestion'], 'moderate'], '#FF9800',
+                    ['==', ['get', 'congestion'], 'heavy'], '#F44336',
+                    ['==', ['get', 'congestion'], 'severe'], '#9C27B0',
+                    '#2196F3'
+                ]
+            }
+        });
     }
 
     async calculateRoute() {
         if (!this.pickupLocation || !this.dropoffLocation) return;
 
         try {
-            const start = `${this.pickupLocation.lng},${this.pickupLocation.lat}`;
-            const end = `${this.dropoffLocation.lng},${this.dropoffLocation.lat}`;
-            const url = `https://router.project-osrm.org/route/v1/driving/${start};${end}?overview=full&geometries=geojson`;
-
-            const response = await fetch(url);
-            const data = await response.json();
-
-            if (data.routes && data.routes.length > 0) {
-                const route = data.routes[0];
-                const coordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
-                
-                // Draw route with traffic analysis
-                this.drawRouteWithTraffic(coordinates, route.distance, route.duration);
-                
-                // Update UI
-                this.updateRouteInfo(route.distance / 1000, route.duration / 60);
-                
-                // Show route type indicator
-                const routeTypeElement = document.getElementById('routeType');
-                if (routeTypeElement) {
-                    routeTypeElement.classList.remove('hidden');
-                }
-                
-                // Fetch toll stations and speed limits
-                this.fetchTollStationsAndSpeedLimits();
-            }
-        } catch (error) {
-            console.error('Route calculation failed:', error);
-            this.showNotification('❌ Không thể tính toán đường đi', 'error');
-        }
-    }
-
-    async fetchTollStationsAndSpeedLimits() {
-        if (!this.route) return;
-
-        try {
-            const bounds = this.route.getBounds();
-            this.routeBounds = bounds;
-            
-            // Get bounding box
-            const south = bounds.getSouth();
-            const west = bounds.getWest();
-            const north = bounds.getNorth();
-            const east = bounds.getEast();
-            
-            // Fetch toll stations using Overpass API
-            await this.fetchTollStations(south, west, north, east);
-            
-            // Fetch speed limits for the route
-            await this.fetchSpeedLimits(south, west, north, east);
-            
-        } catch (error) {
-            console.error('Failed to fetch toll/speed data:', error);
-            // Use simulated data as fallback
-            this.simulateTollAndSpeedData();
-        }
-    }
-
-    async fetchTollStations(south, west, north, east) {
-        try {
-            const overpassUrl = 'https://overpass-api.de/api/interpreter';
-            // Mở rộng bounding box để tìm trạm thu phí chính xác hơn
-            const margin = 0.05;
-            const query = `
-                [out:json][timeout:25];
-                (
-                    node["barrier"="toll_booth"](${south - margin},${west - margin},${north + margin},${east + margin});
-                    node["amenity"="toll_booth"](${south - margin},${west - margin},${north + margin},${east + margin});
-                    way["toll"="yes"](${south - margin},${west - margin},${north + margin},${east + margin});
-                    way["highway"]["toll:hgv"](${south - margin},${west - margin},${north + margin},${east + margin});
-                );
-                out body;
-                >;
-                out skel qt;
-            `;
-            
-            const response = await fetch(overpassUrl, {
-                method: 'POST',
-                body: query
-            });
-            
-            if (response.ok) {
-                const data = await response.json();
-                console.log('Overpass API response:', data.elements.length, 'elements found');
-                
-                // Lọc chỉ lấy những điểm gần route
-                const filteredElements = this.filterNearbyTollStations(data.elements);
-                
-                if (filteredElements.length > 0) {
-                    this.processTollStations(filteredElements);
-                } else {
-                    console.log('No toll stations found near route, using Vietnam-specific data');
-                    this.simulateTollStations();
-                }
-            } else {
-                console.log('Overpass API failed, using Vietnam-specific data');
-                this.simulateTollStations();
-            }
-        } catch (error) {
-            console.error('Toll fetch failed:', error);
-            this.simulateTollStations();
-        }
-    }
-
-    filterNearbyTollStations(elements) {
-        if (!this.route) return elements;
-        
-        const routeCoords = this.route.getLatLngs();
-        const filtered = [];
-        
-        elements.forEach(element => {
-            if (element.type === 'node' && element.lat && element.lon) {
-                // Kiểm tra xem trạm có gần route không (trong bán kính 2km)
-                for (let coord of routeCoords) {
-                    const distance = this.calculateDistance(
-                        element.lat, element.lon,
-                        coord.lat, coord.lng
-                    );
-                    if (distance < 2) { // 2km
-                        filtered.push(element);
-                        break;
-                    }
-                }
-            }
-        });
-        
-        return filtered;
-    }
-
-    async fetchSpeedLimits(south, west, north, east) {
-        try {
-            const overpassUrl = 'https://overpass-api.de/api/interpreter';
-            const query = `
-                [out:json][timeout:25];
-                (
-                    way["highway"]["maxspeed"](${south},${west},${north},${east});
-                );
-                out body;
-                >;
-                out skel qt;
-            `;
-            
-            const response = await fetch(overpassUrl, {
-                method: 'POST',
-                body: query
-            });
-            
-            if (response.ok) {
-                const data = await response.json();
-                this.processSpeedLimits(data.elements);
-                console.log('Speed limits fetched:', data.elements.length);
-            } else {
-                console.log('Speed limit API failed, using simulated data');
-                this.simulateSpeedLimits();
-            }
-        } catch (error) {
-            console.error('Speed limit fetch failed:', error);
-            this.simulateSpeedLimits();
-        }
-    }
-
-    processTollStations(elements) {
-        this.tollStations = [];
-        const processedLocations = new Set();
-        
-        elements.forEach(element => {
-            if (element.type === 'node' && element.lat && element.lon) {
-                // Làm tròn tọa độ để tránh trùng lặp
-                const locationKey = `${element.lat.toFixed(3)}_${element.lon.toFixed(3)}`;
-                
-                // Kiểm tra trùng lặp
-                if (!processedLocations.has(locationKey) && this.tollStations.length < 5) {
-                    const tollInfo = {
-                        lat: element.lat,
-                        lng: element.lon,
-                        name: element.tags?.name || 'Trạm thu phí',
-                        type: element.tags?.toll || 'yes'
-                    };
-                    this.tollStations.push(tollInfo);
-                    this.addTollMarker(tollInfo);
-                    processedLocations.add(locationKey);
-                }
-            }
-        });
-        
-        console.log(`✅ Processed ${this.tollStations.length} toll stations (filtered from ${elements.length} elements)`);
-        
-        // If no toll stations found, simulate some
-        if (this.tollStations.length === 0) {
-            this.simulateTollStations();
-        } else {
-            this.updateTollInformation();
-        }
-    }
-
-    processSpeedLimits(elements) {
-        this.speedLimits = [];
-        
-        elements.forEach(element => {
-            if (element.type === 'way' && element.tags?.maxspeed) {
-                const speedLimit = {
-                    maxspeed: element.tags.maxspeed,
-                    highway: element.tags.highway,
-                    name: element.tags.name || 'Unnamed road'
-                };
-                this.speedLimits.push(speedLimit);
-            }
-        });
-        
-        if (this.speedLimits.length === 0) {
-            this.simulateSpeedLimits();
-        } else {
-            this.updateSpeedLimitInformation();
-        }
-    }
-
-    simulateTollStations() {
-        // Simulate toll stations for Vietnam highways
-        if (!this.route) return;
-        
-        const coordinates = this.route.getLatLngs();
-        const routeDistance = this.calculateTotalDistance();
-        
-        console.log(`🛣️ Route distance: ${routeDistance.toFixed(2)} km`);
-        
-        // Danh sách trạm thu phí thực tế phổ biến ở Việt Nam
-        const vietnamTollStations = [
-            { name: 'Trạm thu phí Pháp Vân - Cầu Giẽ', lat: 20.9736, lng: 105.8481 },
-            { name: 'Trạm thu phí Hòa Lạc - Hòa Bình', lat: 20.9814, lng: 105.6789 },
-            { name: 'Trạm thu phí Cầu Bính', lat: 21.0892, lng: 105.9234 },
-            { name: 'Trạm thu phí Bắc Hưng Hải', lat: 20.8542, lng: 106.1234 },
-            { name: 'Trạm thu phí Đại Thịnh', lat: 21.1234, lng: 105.7890 },
-            { name: 'Trạm thu phí Ninh Bình', lat: 20.2506, lng: 105.9745 }
-        ];
-        
-        // Tìm trạm thu phí gần route (trong bán kính 3km)
-        vietnamTollStations.forEach(station => {
-            let minDistance = Infinity;
-            
-            // Kiểm tra khoảng cách đến route
-            for (let coord of coordinates) {
-                const distance = this.calculateDistance(
-                    station.lat, station.lng,
-                    coord.lat, coord.lng
-                );
-                
-                if (distance < minDistance) {
-                    minDistance = distance;
-                }
-            }
-            
-            // Chỉ thêm nếu cách route < 3km và chưa đủ 3 trạm
-            if (minDistance < 3 && this.tollStations.length < 3) {
-                const tollInfo = {
-                    lat: station.lat,
-                    lng: station.lng,
-                    name: station.name,
-                    type: 'vietnam_known'
-                };
-                
-                this.tollStations.push(tollInfo);
-                this.addTollMarker(tollInfo);
-                console.log(`📍 Found toll station: ${station.name} (${minDistance.toFixed(2)} km from route)`);
-            }
-        });
-        
-        console.log(`✅ Total toll stations found: ${this.tollStations.length}`);
-        
-        this.updateTollInformation();
-    }
-
-    simulateSpeedLimits() {
-        // Simulate speed limits based on road type
-        this.speedLimits = [
-            { maxspeed: '80', highway: 'primary', name: 'Đường chính' },
-            { maxspeed: '60', highway: 'secondary', name: 'Đường nhánh' },
-            { maxspeed: '50', highway: 'residential', name: 'Đường nội thành' }
-        ];
-        
-        this.updateSpeedLimitInformation();
-    }
-
-    simulateTollAndSpeedData() {
-        this.simulateTollStations();
-        this.simulateSpeedLimits();
-    }
-
-    estimateTollFee() {
-        // Estimate toll fee based on vehicle type (assuming 4-seat car)
-        const fees = ['30,000 VNĐ', '40,000 VNĐ', '50,000 VNĐ', '60,000 VNĐ'];
-        return fees[Math.floor(Math.random() * fees.length)];
-    }
-
-    addTollMarker(tollInfo) {
-        const tollIcon = L.divIcon({
-            html: `
-                <div style="background: linear-gradient(135deg, #f97316, #ea580c); color: white; border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; font-weight: bold; box-shadow: 0 4px 8px rgba(0,0,0,0.3); border: 3px solid white;">
-                    <i class="fas fa-toll-highway" style="font-size: 16px;"></i>
-                </div>
-            `,
-            className: 'toll-marker',
-            iconSize: [36, 36],
-            iconAnchor: [18, 18]
-        });
-        
-        const marker = L.marker([tollInfo.lat, tollInfo.lng], { icon: tollIcon })
-            .addTo(this.map)
-            .bindPopup(`
-                <div style="min-width: 200px;">
-                    <h3 style="margin: 0 0 8px 0; font-size: 16px; font-weight: bold; color: #ea580c;">
-                        <i class="fas fa-toll-highway" style="margin-right: 5px;"></i>${tollInfo.name}
-                    </h3>
-                    <div style="background: #ffedd5; padding: 10px; border-radius: 8px; border-left: 4px solid #f97316;">
-                        <p style="margin: 0; font-size: 13px; color: #9a3412;">
-                            <i class="fas fa-info-circle" style="margin-right: 4px;"></i>
-                            <strong>Lưu ý:</strong> Có trạm thu phí trên tuyến
-                        </p>
-                        <p style="margin: 6px 0 0 0; font-size: 12px; color: #c2410c;">
-                            Vui lòng chuẩn bị tiền mặt hoặc thẻ thanh toán
-                        </p>
-                    </div>
-                </div>
-            `);
-        
-        // Add to toll stations array for reference
-        if (!this.tollMarkers) this.tollMarkers = [];
-        this.tollMarkers.push(marker);
-    }
-
-    updateTollInformation() {
-        // Chỉ hiển thị thông báo, không tính tiền
-        const tollInfoHtml = `
-            <div class="mt-6 p-5 bg-gradient-to-r from-orange-50 to-yellow-50 rounded-xl border-2 border-orange-300 shadow-lg">
-                <div class="flex items-center space-x-3 mb-4">
-                    <div class="bg-orange-600 p-3 rounded-full shadow-md">
-                        <i class="fas fa-toll-highway text-white text-2xl"></i>
-                    </div>
-                    <div>
-                        <h3 class="text-xl font-bold text-orange-800">Thông báo trạm thu phí</h3>
-                        <p class="text-sm text-orange-600">Phát hiện ${this.tollStations.length} trạm thu phí trên tuyến</p>
-                    </div>
-                </div>
-                <div class="grid grid-cols-1 gap-3">
-                    ${this.tollStations.map((toll, index) => `
-                        <div class="bg-white p-3 rounded-lg border-l-4 border-orange-400 shadow-sm flex items-center space-x-3">
-                            <div class="bg-orange-100 text-orange-700 rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold flex-shrink-0">
-                                ${index + 1}
-                            </div>
-                            <div class="flex-1">
-                                <span class="font-semibold text-gray-800">${toll.name}</span>
-                            </div>
-                            <i class="fas fa-map-marker-alt text-orange-500"></i>
-                        </div>
-                    `).join('')}
-                </div>
-                <div class="mt-4 p-4 bg-orange-100 border-l-4 border-orange-500 rounded">
-                    <div class="flex items-start space-x-3">
-                        <i class="fas fa-exclamation-circle text-orange-600 text-xl mt-1"></i>
-                        <div>
-                            <p class="font-semibold text-orange-800 text-sm">Lưu ý quan trọng</p>
-                            <p class="text-orange-700 text-xs mt-1">Vui lòng chuẩn bị tiền mặt hoặc thẻ để thanh toán phí đường bộ. Phí thu tùy thuộc vào loại xe.</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-        
-        // Insert after traffic congestion details
-        const trafficDetails = document.getElementById('trafficCongestionDetails');
-        if (trafficDetails) {
-            // Remove old toll info if exists
-            const oldTollInfo = document.getElementById('tollInformation');
-            if (oldTollInfo) oldTollInfo.remove();
-            
-            // Add new toll info
-            const tollDiv = document.createElement('div');
-            tollDiv.id = 'tollInformation';
-            tollDiv.innerHTML = tollInfoHtml;
-            trafficDetails.parentNode.insertBefore(tollDiv, trafficDetails.nextSibling);
-        }
-    }
-
-    calculateTotalDistance() {
-        if (!this.route) return 0;
-        const coords = this.route.getLatLngs();
-        let total = 0;
-        for (let i = 1; i < coords.length; i++) {
-            total += this.calculateDistance(
-                coords[i-1].lat, coords[i-1].lng,
-                coords[i].lat, coords[i].lng
+            // Use Mapbox Directions API
+            const response = await fetch(
+                `https://api.mapbox.com/directions/v5/mapbox/driving/${this.pickupLocation.coords[0]},${this.pickupLocation.coords[1]};${this.dropoffLocation.coords[0]},${this.dropoffLocation.coords[1]}?access_token=${this.mapboxAccessToken}&geometries=geojson&overview=full&steps=true&annotations=duration,distance,speed`
             );
-        }
-        return total;
-    }
-
-    estimateDuration(distance) {
-        // Estimate duration based on distance (assuming 40 km/h average)
-        return (distance / 40) * 60; // in minutes
-    }
-
-    updateSpeedLimitInformation() {
-        // Get unique speed limits
-        const uniqueSpeeds = [...new Set(this.speedLimits.map(s => s.maxspeed))].sort((a, b) => {
-            return parseInt(b) - parseInt(a);
-        });
-        
-        const speedInfoHtml = `
-            <div class="mt-6 p-5 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border-2 border-blue-300 shadow-lg">
-                <div class="flex items-center space-x-3 mb-4">
-                    <div class="bg-blue-600 p-3 rounded-full shadow-md">
-                        <i class="fas fa-tachometer-alt text-white text-2xl"></i>
-                    </div>
-                    <div>
-                        <h3 class="text-xl font-bold text-blue-800">Giới hạn tốc độ trên tuyến</h3>
-                        <p class="text-sm text-blue-600">Các mức tốc độ cần tuân thủ</p>
-                    </div>
-                </div>
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    ${uniqueSpeeds.map(speed => {
-                        const speedValue = parseInt(speed);
-                        let colorClass = 'bg-green-50 border-green-300 text-green-700';
-                        if (speedValue >= 80) colorClass = 'bg-red-50 border-red-300 text-red-700';
-                        else if (speedValue >= 60) colorClass = 'bg-yellow-50 border-yellow-300 text-yellow-700';
-                        
-                        return `
-                            <div class="${colorClass} p-4 rounded-lg border-2 text-center">
-                                <div class="text-3xl font-bold mb-1">${speed}</div>
-                                <div class="text-xs font-semibold">km/h</div>
-                                <div class="text-xs mt-2 opacity-75">Giới hạn</div>
-                            </div>
-                        `;
-                    }).join('')}
-                </div>
-                <div class="mt-4 p-4 bg-yellow-50 border-l-4 border-yellow-500 rounded">
-                    <div class="flex items-start space-x-3">
-                        <i class="fas fa-exclamation-triangle text-yellow-600 text-xl mt-1"></i>
-                        <div>
-                            <p class="font-semibold text-yellow-800 text-sm">Lưu ý quan trọng</p>
-                            <p class="text-yellow-700 text-xs mt-1">Vui lòng tuân thủ tốc độ giới hạn để đảm bảo an toàn. Vi phạm tốc độ có thể bị phạt nặng.</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-        
-        // Insert after toll information
-        const tollInfo = document.getElementById('tollInformation');
-        if (tollInfo) {
-            // Remove old speed info if exists
-            const oldSpeedInfo = document.getElementById('speedLimitInformation');
-            if (oldSpeedInfo) oldSpeedInfo.remove();
             
-            // Add new speed info
-            const speedDiv = document.createElement('div');
-            speedDiv.id = 'speedLimitInformation';
-            speedDiv.innerHTML = speedInfoHtml;
-            tollInfo.parentNode.insertBefore(speedDiv, tollInfo.nextSibling);
+            if (response.ok) {
+                const data = await response.json();
+                this.displayRoute(data);
+                await this.updateRouteInfo(data);
+                this.fetchTrafficData(data);
+            }
+        } catch (error) {
+            console.error('Route calculation error:', error);
         }
     }
 
-    drawRouteWithTraffic(coordinates, distance, duration) {
-        // Clear existing route layers
-        if (this.route) {
-            this.map.removeLayer(this.route);
+    displayRoute(routeData) {
+        // Remove existing route
+        if (this.map.getSource('route')) {
+            this.map.removeLayer('route');
+            this.map.removeSource('route');
         }
-        
-        // Clear all traffic segment layers
-        if (this.trafficLayers) {
-            this.trafficLayers.forEach(layer => this.map.removeLayer(layer));
-        }
-        this.trafficLayers = [];
 
-        // Analyze traffic for different segments
-        this.analyzeTrafficSegments(coordinates);
+        // Add route to map
+        this.map.addSource('route', {
+            type: 'geojson',
+            data: {
+                type: 'Feature',
+                properties: {},
+                geometry: routeData.routes[0].geometry
+            }
+        });
 
-        // Draw base route (main line)
-        const baseRouteStyle = {
-            color: '#3b82f6',
-            weight: 8,
-            opacity: 0.6,
-            lineCap: 'round',
-            lineJoin: 'round'
-        };
+        this.map.addLayer({
+            id: 'route',
+            type: 'line',
+            source: 'route',
+            layout: {
+                'line-join': 'round',
+                'line-cap': 'round'
+            },
+            paint: {
+                'line-color': '#3b82f6',
+                'line-width': 4
+            }
+        });
 
-        this.route = L.polyline(coordinates, baseRouteStyle).addTo(this.map);
-        
-        // Draw traffic congestion overlays AFTER base route (so they appear on top)
-        this.drawCongestedSegments();
-        
+        // Add markers
+        this.addLocationMarkers();
+
         // Fit map to route
-        this.map.fitBounds(this.route.getBounds().pad(0.1));
-        
-        // Update route quality indicator
-        this.updateRouteQuality();
+        const coordinates = routeData.routes[0].geometry.coordinates;
+        const bounds = coordinates.reduce((bounds, coord) => {
+            return bounds.extend(coord);
+        }, new mapboxgl.LngLatBounds(coordinates[0], coordinates[0]));
+
+        this.map.fitBounds(bounds, { padding: 50 });
     }
 
-    analyzeTrafficSegments(coordinates) {
-        // Divide route into more segments for better accuracy (15-20 segments)
-        const numSegments = 15;
-        const segmentSize = Math.max(1, Math.floor(coordinates.length / numSegments));
-        this.congestionSegments = [];
-
-        for (let i = 0; i < coordinates.length; i += segmentSize) {
-            const segment = coordinates.slice(i, i + segmentSize);
-            if (segment.length > 1) {
-                const midPoint = segment[Math.floor(segment.length / 2)];
-                const congestionLevel = this.getSimulatedCongestionLevel(midPoint);
-                
-                this.congestionSegments.push({
-                    coordinates: segment,
-                    congestionLevel: congestionLevel,
-                    distance: this.calculateSegmentDistance(segment)
-                });
-            }
-        }
-
-        // Log traffic statistics for debugging
-        const congestedCount = this.congestionSegments.filter(s => s.congestionLevel > 0.4).length;
-        const severeCount = this.congestionSegments.filter(s => s.congestionLevel > 0.8).length;
-        console.log(`Traffic Analysis: ${congestedCount}/${this.congestionSegments.length} segments congested (${severeCount} severe)`);
-
-        // Draw congested segments in red
-        this.drawCongestedSegments();
-        this.updateCongestionInfo();
-    }
-
-    getSimulatedCongestionLevel(coordinate) {
-        // Simulate congestion based on time and location
-        const now = new Date();
-        const hour = now.getHours();
-        const lat = coordinate[0];
-        const lng = coordinate[1];
-
-        // Chỉ 30% đoạn đường có khả năng bị tắc
-        const hasCongestion = Math.random() < 0.3;
-        
-        if (!hasCongestion) {
-            // 70% đường thông thoáng (0-0.2)
-            return Math.random() * 0.2;
-        }
-
-        // Với 30% đoạn có tắc, phân bổ mức độ
-        let baseCongestion = 0.1;
-        
-        // Rush hour chỉ tăng nhẹ xác suất tắc
-        const isRushHour = (hour >= 7 && hour <= 9) || (hour >= 17 && hour <= 19);
-        if (isRushHour) {
-            baseCongestion = 0.2;
-        }
-
-        // Location-based congestion (simulate city center)
-        const cityCenterLat = 21.0285;
-        const cityCenterLng = 105.8542;
-        const distanceFromCenter = Math.sqrt(
-            Math.pow(lat - cityCenterLat, 2) + Math.pow(lng - cityCenterLng, 2)
-        );
-
-        // Chỉ khu vực trung tâm mới có khả năng tắc cao
-        if (distanceFromCenter < 0.02) { // Very close to center
-            baseCongestion += 0.4;
-        } else if (distanceFromCenter < 0.05) { // Within city center
-            baseCongestion += 0.2;
-        }
-
-        // Thêm yếu tố ngẫu nhiên nhưng không quá cao
-        const randomFactor = Math.random() * 0.4;
-        
-        return Math.min(0.95, baseCongestion + randomFactor);
-    }
-
-    calculateSegmentDistance(coordinates) {
-        let distance = 0;
-        for (let i = 1; i < coordinates.length; i++) {
-            distance += this.calculateDistance(
-                coordinates[i-1][0], coordinates[i-1][1],
-                coordinates[i][0], coordinates[i][1]
-            );
-        }
-        return distance;
-    }
-
-    calculateDistance(lat1, lng1, lat2, lng2) {
-        const R = 6371; // Earth's radius in km
-        const dLat = (lat2 - lat1) * Math.PI / 180;
-        const dLng = (lng2 - lng1) * Math.PI / 180;
-        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-                  Math.sin(dLng/2) * Math.sin(dLng/2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-        return R * c;
-    }
-
-    drawCongestedSegments() {
-        this.congestionSegments.forEach((segment, index) => {
-            let color, weight, opacity, dashArray;
-            
-            if (segment.congestionLevel > 0.8) {
-                // Severe congestion - RED with thick line
-                color = '#dc2626';
-                weight = 12;
-                opacity = 0.95;
-                dashArray = null;
-            } else if (segment.congestionLevel > 0.6) {
-                // Heavy congestion - DARK RED
-                color = '#ef4444';
-                weight = 11;
-                opacity = 0.9;
-                dashArray = null;
-            } else if (segment.congestionLevel > 0.4) {
-                // Moderate congestion - ORANGE
-                color = '#f59e0b';
-                weight = 10;
-                opacity = 0.85;
-                dashArray = null;
-            } else if (segment.congestionLevel > 0.2) {
-                // Light congestion - YELLOW
-                color = '#fbbf24';
-                weight = 9;
-                opacity = 0.75;
-                dashArray = '10, 5';
-            } else {
-                // Good traffic - GREEN
-                color = '#10b981';
-                weight = 8;
-                opacity = 0.7;
-                dashArray = '10, 5';
-            }
-            
-            const layer = L.polyline(segment.coordinates, {
-                color: color,
-                weight: weight,
-                opacity: opacity,
-                lineCap: 'round',
-                lineJoin: 'round',
-                dashArray: dashArray
-            }).addTo(this.map);
-            
-            // Add popup with congestion info and speed limit
-            const congestionPercent = Math.round(segment.congestionLevel * 100);
-            let statusText = '';
-            let statusIcon = '';
-            
-            if (segment.congestionLevel > 0.8) {
-                statusText = 'Tắc nghiêm trọng';
-                statusIcon = '🔴';
-            } else if (segment.congestionLevel > 0.6) {
-                statusText = 'Tắc nặng';
-                statusIcon = '🔴';
-            } else if (segment.congestionLevel > 0.4) {
-                statusText = 'Tắc vừa';
-                statusIcon = '🟠';
-            } else if (segment.congestionLevel > 0.2) {
-                statusText = 'Chậm';
-                statusIcon = '🟡';
-            } else {
-                statusText = 'Thông thoáng';
-                statusIcon = '🟢';
-            }
-            
-            // Determine speed limit for this segment
-            const speedLimit = this.getSpeedLimitForSegment(segment);
-            const speedLimitHtml = speedLimit ? `
-                <div class="mt-3 pt-3 border-t border-gray-300">
-                    <div class="flex items-center justify-center space-x-2 bg-blue-50 p-2 rounded">
-                        <i class="fas fa-tachometer-alt text-blue-600"></i>
-                        <span class="font-bold text-blue-800">Giới hạn: ${speedLimit} km/h</span>
-                    </div>
-                </div>
-            ` : '';
-            
-            layer.bindPopup(`
-                <div style="min-width: 220px;">
-                    <div class="text-center">
-                        <div class="text-3xl mb-2">${statusIcon}</div>
-                        <div class="font-bold text-xl mb-2 text-gray-800">${statusText}</div>
-                        <div class="grid grid-cols-2 gap-2 text-sm mb-2">
-                            <div class="bg-gray-100 p-2 rounded">
-                                <div class="text-gray-600 text-xs">Đoạn</div>
-                                <div class="font-bold text-gray-800">#${index + 1}</div>
-                            </div>
-                            <div class="bg-gray-100 p-2 rounded">
-                                <div class="text-gray-600 text-xs">Mức độ</div>
-                                <div class="font-bold text-gray-800">${congestionPercent}%</div>
-                            </div>
-                        </div>
-                        <div class="bg-indigo-50 p-2 rounded">
-                            <div class="text-xs text-gray-600">Quãng đường</div>
-                            <div class="font-bold text-indigo-700">${segment.distance.toFixed(2)} km</div>
-                        </div>
-                        ${speedLimitHtml}
-                    </div>
-                </div>
-            `);
-            
-            this.trafficLayers.push(layer);
-        });
-    }
-
-    getSpeedLimitForSegment(segment) {
-        // Get speed limit from fetched data or estimate based on road type
-        if (this.speedLimits && this.speedLimits.length > 0) {
-            // Return most common speed limit or random from available
-            const speeds = this.speedLimits.map(s => parseInt(s.maxspeed));
-            const avgSpeed = speeds.reduce((a, b) => a + b, 0) / speeds.length;
-            return Math.round(avgSpeed);
-        }
-        
-        // Estimate based on congestion level and location
-        const midPoint = segment.coordinates[Math.floor(segment.coordinates.length / 2)];
-        const cityCenterLat = 21.0285;
-        const cityCenterLng = 105.8542;
-        const distanceFromCenter = this.calculateDistance(
-            midPoint[0], midPoint[1],
-            cityCenterLat, cityCenterLng
-        );
-        
-        if (distanceFromCenter < 2) {
-            return 50; // City center
-        } else if (distanceFromCenter < 5) {
-            return 60; // Urban area
-        } else if (distanceFromCenter < 10) {
-            return 80; // Suburban
-        } else {
-            return 90; // Highway
-        }
-    }
-
-    updateRouteQuality() {
-        // Calculate overall route quality
-        const totalCongestion = this.congestionSegments.reduce((sum, seg) => sum + seg.congestionLevel, 0);
-        const avgCongestion = totalCongestion / this.congestionSegments.length;
-        
-        // Quality is inverse of congestion (0-100%, where 100% is best)
-        const quality = Math.round((1 - avgCongestion) * 100);
-        
-        const qualityBar = document.getElementById('routeQualityBar');
-        const qualityText = document.getElementById('routeQualityText');
-        
-        if (qualityBar && qualityText) {
-            qualityBar.style.width = `${quality}%`;
-            
-            if (quality >= 70) {
-                qualityText.textContent = 'Tốt';
-                qualityText.className = 'text-sm font-bold text-green-600';
-            } else if (quality >= 40) {
-                qualityText.textContent = 'TB';
-                qualityText.className = 'text-sm font-bold text-orange-600';
-            } else {
-                qualityText.textContent = 'Kém';
-                qualityText.className = 'text-sm font-bold text-red-600';
-            }
-        }
-    }
-
-    updateCongestionInfo() {
-        const severeSegments = this.congestionSegments.filter(s => s.congestionLevel > 0.8);
-        const heavySegments = this.congestionSegments.filter(s => s.congestionLevel > 0.6 && s.congestionLevel <= 0.8);
-        const moderateSegments = this.congestionSegments.filter(s => s.congestionLevel > 0.4 && s.congestionLevel <= 0.6);
-        const congestedSegments = this.congestionSegments.filter(s => s.congestionLevel > 0.4);
-        const totalCongestedDistance = congestedSegments.reduce((sum, s) => sum + s.distance, 0);
-        
-        // Chỉ hiển thị cảnh báo nếu có đoạn tắc
-        if (congestedSegments.length > 0) {
-            document.getElementById('trafficCongestionDetails').classList.remove('hidden');
-            
-            const congestionInfo = document.getElementById('congestionInfo');
-            const totalSegments = this.congestionSegments.length;
-            const smoothSegments = totalSegments - congestedSegments.length;
-            
-            congestionInfo.innerHTML = `
-                <div class="space-y-4">
-                    <div class="bg-white border-2 border-blue-200 rounded-lg p-4">
-                        <div class="flex items-center justify-between mb-3">
-                            <div class="flex items-center space-x-2">
-                                <i class="fas fa-road text-blue-600 text-xl"></i>
-                                <span class="font-bold text-gray-800 text-lg">Tình trạng giao thông</span>
-                            </div>
-                            <span class="text-sm text-gray-600">${congestedSegments.length}/${totalSegments} đoạn có tắc</span>
-                        </div>
-                        <div class="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
-                            ${severeSegments.length > 0 ? `
-                                <div class="bg-red-50 p-3 rounded-lg border border-red-200">
-                                    <div class="flex items-center space-x-2 mb-1">
-                                        <div class="w-3 h-3 bg-red-600 rounded-full animate-pulse"></div>
-                                        <span class="font-semibold text-red-800">Tắc nghiêm trọng</span>
-                                    </div>
-                                    <p class="text-red-700 font-bold text-lg">${severeSegments.length}</p>
-                                </div>
-                            ` : ''}
-                            ${heavySegments.length > 0 ? `
-                                <div class="bg-orange-50 p-3 rounded-lg border border-orange-200">
-                                    <div class="flex items-center space-x-2 mb-1">
-                                        <div class="w-3 h-3 bg-orange-500 rounded-full"></div>
-                                        <span class="font-semibold text-orange-800">Tắc nặng</span>
-                                    </div>
-                                    <p class="text-orange-700 font-bold text-lg">${heavySegments.length}</p>
-                                </div>
-                            ` : ''}
-                            ${moderateSegments.length > 0 ? `
-                                <div class="bg-yellow-50 p-3 rounded-lg border border-yellow-200">
-                                    <div class="flex items-center space-x-2 mb-1">
-                                        <div class="w-3 h-3 bg-yellow-500 rounded-full"></div>
-                                        <span class="font-semibold text-yellow-800">Tắc vừa</span>
-                                    </div>
-                                    <p class="text-yellow-700 font-bold text-lg">${moderateSegments.length}</p>
-                                </div>
-                            ` : ''}
-                            <div class="bg-green-50 p-3 rounded-lg border border-green-200">
-                                <div class="flex items-center space-x-2 mb-1">
-                                    <div class="w-3 h-3 bg-green-500 rounded-full"></div>
-                                    <span class="font-semibold text-green-800">Thông thoáng</span>
-                                </div>
-                                <p class="text-green-700 font-bold text-lg">${smoothSegments}</p>
-                            </div>
-                            <div class="bg-blue-50 p-3 rounded-lg border border-blue-200">
-                                <div class="flex items-center space-x-2 mb-1">
-                                    <i class="fas fa-route text-blue-600"></i>
-                                    <span class="font-semibold text-blue-800">Quãng tắc</span>
-                                </div>
-                                <p class="text-blue-700 font-bold text-lg">${totalCongestedDistance.toFixed(1)} km</p>
-                            </div>
-                        </div>
-                    </div>
-                    ${totalCongestedDistance > 0.5 ? `
-                        <div class="bg-yellow-50 border-l-4 border-yellow-500 p-4 rounded">
-                            <div class="flex items-start space-x-3">
-                                <i class="fas fa-clock text-yellow-600 text-xl mt-1"></i>
-                                <div>
-                                    <p class="font-semibold text-yellow-800">Thời gian chậm trễ dự kiến</p>
-                                    <p class="text-yellow-700 text-lg font-bold">+${Math.round(totalCongestedDistance * 3)} phút</p>
-                                    <p class="text-sm text-yellow-600 mt-1">Do tắc đường tại một số đoạn</p>
-                                </div>
-                            </div>
-                        </div>
-                    ` : ''}
-                </div>
-            `;
-
-            // Update traffic info overlay
-            this.updateTrafficInfoOverlay(congestedSegments, totalCongestedDistance);
-        } else {
-            // Ẩn cảnh báo nếu không có tắc đường
-            document.getElementById('trafficCongestionDetails').classList.add('hidden');
-            document.getElementById('trafficInfoOverlay').classList.add('hidden');
-        }
-    }
-
-    updateTrafficInfoOverlay(congestedSegments, totalDistance) {
-        const overlay = document.getElementById('trafficInfoOverlay');
-        const content = document.getElementById('trafficInfoContent');
-        
-        if (congestedSegments.length > 0) {
-            overlay.classList.remove('hidden');
-            
-            const severeCount = congestedSegments.filter(s => s.congestionLevel > 0.8).length;
-            const heavyCount = congestedSegments.filter(s => s.congestionLevel > 0.6 && s.congestionLevel <= 0.8).length;
-            
-            content.innerHTML = `
-                <div class="space-y-3">
-                    <div class="bg-red-50 p-3 rounded-lg border border-red-200">
-                        <div class="flex items-center justify-between mb-2">
-                            <span class="font-semibold text-red-800">Đoạn tắc nghiêm trọng</span>
-                            <span class="font-bold text-red-600 text-xl">${severeCount}</span>
-                        </div>
-                    </div>
-                    <div class="bg-orange-50 p-3 rounded-lg border border-orange-200">
-                        <div class="flex items-center justify-between mb-2">
-                            <span class="font-semibold text-orange-800">Đoạn tắc nặng</span>
-                            <span class="font-bold text-orange-600 text-xl">${heavyCount}</span>
-                        </div>
-                    </div>
-                    <div class="border-t-2 border-gray-300 pt-3">
-                        <div class="flex justify-between items-center mb-2">
-                            <span class="text-gray-700">Tổng quãng tắc:</span>
-                            <span class="font-bold text-gray-900">${totalDistance.toFixed(2)} km</span>
-                        </div>
-                        <div class="flex justify-between items-center">
-                            <span class="text-gray-700">Chậm trễ dự kiến:</span>
-                            <span class="font-bold text-red-600 text-lg">+${Math.round(totalDistance * 3)} phút</span>
-                        </div>
-                    </div>
-                    <div class="bg-yellow-50 p-3 rounded-lg border border-yellow-300 text-center">
-                        <i class="fas fa-lightbulb text-yellow-600 mr-1"></i>
-                        <span class="text-xs text-yellow-800 font-semibold">Nhấn vào đường đỏ để xem chi tiết</span>
-                    </div>
-                </div>
-            `;
-        } else {
-            overlay.classList.add('hidden');
-        }
-    }
-
-    async fetchRealTimeData() {
-        if (!this.pickupLocation) return;
-
-        try {
-            // Fetch weather data using WeatherAPI.com
-            await this.fetchWeatherData();
-            
-            // Fetch traffic data
-            await this.fetchTrafficData();
-            
-            // Update conditions display
-            this.updateConditionsDisplay();
-            
-        } catch (error) {
-            console.error('Failed to fetch real-time data:', error);
-        }
-    }
-
-    async fetchWeatherData() {
-        try {
-            const url = `https://api.weatherapi.com/v1/current.json?key=${this.weatherApiKey}&q=${this.pickupLocation.lat},${this.pickupLocation.lng}&aqi=no`;
-            
-            const response = await fetch(url);
-            if (response.ok) {
-                const data = await response.json();
-                this.weatherData = {
-                    temperature: data.current.temp_c,
-                    condition: data.current.condition.text,
-                    humidity: data.current.humidity,
-                    windSpeed: data.current.wind_kph
-                };
-                console.log('Weather data fetched:', this.weatherData);
-            } else {
-                console.log('Weather API failed, using simulated data');
-                this.weatherData = this.simulateWeatherData();
-            }
-        } catch (error) {
-            console.error('Weather fetch failed:', error);
-            this.weatherData = this.simulateWeatherData();
-        }
-    }
-
-    async fetchTrafficData() {
-        try {
-            const midLat = (this.pickupLocation.lat + this.dropoffLocation.lat) / 2;
-            const midLng = (this.pickupLocation.lng + this.dropoffLocation.lng) / 2;
-            
-            const url = `https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json?key=${this.trafficApiKey}&point=${midLat},${midLng}`;
-            
-            const response = await fetch(url);
-            if (response.ok) {
-                const data = await response.json();
-                this.trafficData = data.flowSegmentData;
-                console.log('Traffic data fetched:', this.trafficData);
-            } else {
-                console.log('Traffic API failed, using simulated data');
-                this.trafficData = this.simulateTrafficData();
-            }
-        } catch (error) {
-            console.error('Traffic fetch failed:', error);
-            this.trafficData = this.simulateTrafficData();
-        }
-    }
-
-    simulateWeatherData() {
-        const conditions = ['Clear', 'Partly Cloudy', 'Cloudy', 'Rain', 'Thunderstorm'];
-        return {
-            temperature: Math.round(Math.random() * 15 + 20), // 20-35°C
-            condition: conditions[Math.floor(Math.random() * conditions.length)],
-            humidity: Math.round(Math.random() * 40 + 40), // 40-80%
-            windSpeed: Math.round(Math.random() * 20 + 5) // 5-25 km/h
-        };
-    }
-
-    simulateTrafficData() {
-        return {
-            currentSpeed: Math.round(Math.random() * 30 + 20), // 20-50 km/h
-            freeFlowSpeed: Math.round(Math.random() * 20 + 50), // 50-70 km/h
-            confidence: Math.round(Math.random() * 20 + 80) // 80-100%
-        };
-    }
-
-    updateRouteInfo(distance, duration) {
-        // Update pickup and dropoff locations
+    addLocationMarkers() {
+        // Add pickup marker
         if (this.pickupLocation) {
-            const pickupDisplay = document.getElementById('pickupLocationDisplay');
-            if (pickupDisplay) pickupDisplay.textContent = this.pickupLocation.name;
-            
-            // Update pickup coordinates
-            const pickupCoords = document.getElementById('pickupCoords');
-            if (pickupCoords) {
-                pickupCoords.textContent = `Tọa độ: ${this.pickupLocation.lat.toFixed(4)}, ${this.pickupLocation.lng.toFixed(4)}`;
-            }
+            new mapboxgl.Marker({ color: 'green' })
+                .setLngLat(this.pickupLocation.coords)
+                .setPopup(new mapboxgl.Popup().setHTML(`
+                    <div class="p-2">
+                        <h3 class="font-bold text-green-600">Điểm đón</h3>
+                        <p>${this.pickupLocation.name}</p>
+                    </div>
+                `))
+                .addTo(this.map);
         }
-        
+
+        // Add dropoff marker
         if (this.dropoffLocation) {
-            const dropoffDisplay = document.getElementById('dropoffLocationDisplay');
-            if (dropoffDisplay) dropoffDisplay.textContent = this.dropoffLocation.name;
-            
-            // Update dropoff coordinates
-            const dropoffCoords = document.getElementById('dropoffCoords');
-            if (dropoffCoords) {
-                dropoffCoords.textContent = `Tọa độ: ${this.dropoffLocation.lat.toFixed(4)}, ${this.dropoffLocation.lng.toFixed(4)}`;
-            }
+            new mapboxgl.Marker({ color: 'red' })
+                .setLngLat(this.dropoffLocation.coords)
+                .setPopup(new mapboxgl.Popup().setHTML(`
+                    <div class="p-2">
+                        <h3 class="font-bold text-red-600">Điểm trả</h3>
+                        <p>${this.dropoffLocation.name}</p>
+                    </div>
+                `))
+                .addTo(this.map);
         }
+    }
+
+    async updateRouteInfo(routeData) {
+        const route = routeData.routes[0];
+        const distance = route.distance / 1000; // Convert to km
+        const duration = route.duration / 60; // Convert to minutes
+        const averageSpeed = (distance / (duration / 60)).toFixed(1); // km/h
 
         // Update distance
-        document.getElementById('distance').textContent = `${distance.toFixed(1)} km`;
-        
-        // Update duration
-        document.getElementById('duration').textContent = `${Math.round(duration)} phút`;
-        
-        // Update duration note based on traffic
-        const durationNote = document.getElementById('durationNote');
-        if (durationNote) {
-            const now = new Date();
-            const hour = now.getHours();
-            const isRushHour = (hour >= 7 && hour <= 9) || (hour >= 17 && hour <= 19);
-            
-            if (isRushHour) {
-                durationNote.textContent = `+${Math.round(duration * 0.3)} phút nếu tắc`;
-            } else {
-                durationNote.textContent = 'Thời gian ước tính chính xác';
-            }
+        const distanceElement = document.getElementById('distance');
+        if (distanceElement) {
+            distanceElement.textContent = `${distance.toFixed(1)} km`;
         }
-        
-        // Calculate average speed
-        const avgSpeed = duration > 0 ? (distance / (duration / 60)).toFixed(1) : 0;
-        const avgSpeedElement = document.getElementById('avgSpeed');
-        if (avgSpeedElement) {
-            avgSpeedElement.textContent = `${avgSpeed} km/h`;
-        }
-        
-        // Update additional information
-        this.updateAdditionalTripInfo(distance, duration, avgSpeed);
-        
-        // Calculate pricing breakdown
-        this.calculateDetailedPricing(distance, duration);
-    }
 
-    updateAdditionalTripInfo(distance, duration, avgSpeed) {
-        // Calculate fuel estimate (assuming 8km/liter average)
-        const fuelEstimate = (distance / 8).toFixed(1);
+        // Update duration
+        const durationElement = document.getElementById('duration');
+        if (durationElement) {
+            durationElement.textContent = `${Math.round(duration)} phút`;
+        }
+
+        // Update average speed
+        const speedElement = document.getElementById('avgSpeed');
+        if (speedElement) {
+            speedElement.textContent = `${averageSpeed} km/h`;
+        }
+
+        // Calculate fuel estimate
+        const fuelEstimate = (distance * 0.08).toFixed(1); // 8L per 100km
         const fuelElement = document.getElementById('fuelEstimate');
         if (fuelElement) {
-            fuelElement.textContent = `${fuelEstimate} lít`;
+            fuelElement.textContent = `${fuelEstimate} L`;
         }
-        
-        // Calculate CO2 emission (2.31 kg CO2 per liter of gasoline)
-        const co2Estimate = (fuelEstimate * 2.31).toFixed(2);
+
+        // Calculate CO2 estimate
+        const co2Estimate = (distance * 0.12).toFixed(1); // 120g CO2 per km
         const co2Element = document.getElementById('co2Estimate');
         if (co2Element) {
             co2Element.textContent = `${co2Estimate} kg`;
         }
-        
-        // Determine road type based on average speed
+
+        // Update road type
         const roadTypeElement = document.getElementById('roadType');
         if (roadTypeElement) {
-            if (avgSpeed > 60) {
-                roadTypeElement.textContent = 'Đường cao tốc';
-            } else if (avgSpeed > 40) {
-                roadTypeElement.textContent = 'Đường liên tỉnh';
-            } else if (avgSpeed > 25) {
-                roadTypeElement.textContent = 'Đường thành phố';
+            roadTypeElement.textContent = this.getRoadType(distance);
+        }
+
+        // Update turn-by-turn directions
+        await this.updateTurnByTurnDirections(route);
+
+        // Update traffic and weather conditions
+        this.updateTrafficAndWeather();
+
+        // Calculate pricing
+        this.calculateDetailedPricing(route);
+    }
+
+    getRoadType(distance) {
+        if (distance < 5) return 'Đường nội thành';
+        if (distance < 20) return 'Đường liên tỉnh';
+        return 'Đường cao tốc';
+    }
+
+    async updateTurnByTurnDirections(route) {
+        const directionsContainer = document.getElementById('turnByTurnDirections');
+        if (!directionsContainer) return;
+
+        try {
+            const legs = route.legs;
+            let directionsHtml = '<div class="space-y-3">';
+            
+            for (let legIndex = 0; legIndex < legs.length; legIndex++) {
+                const leg = legs[legIndex];
+                
+                for (let stepIndex = 0; stepIndex < leg.steps.length; stepIndex++) {
+                    const step = leg.steps[stepIndex];
+                    const instruction = this.translateInstruction(step.maneuver.instruction);
+                    const distance = (step.distance / 1000).toFixed(1);
+                    const duration = Math.round(step.duration / 60);
+                    
+                    // Get maneuver type and icon
+                    const maneuverType = step.maneuver.type;
+                    const icon = this.getManeuverIcon(maneuverType);
+                    
+                    // Get traffic data for this step
+                    const trafficInfo = await this.getTrafficForStep(step);
+                    const trafficIcon = this.getTrafficIcon(trafficInfo.level);
+                    const trafficText = this.getTrafficText(trafficInfo.level);
+                    
+                    directionsHtml += `
+                        <div class="flex items-start space-x-3 p-4 bg-white rounded-lg border border-gray-200 hover:shadow-md transition-shadow">
+                            <div class="flex-shrink-0 w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                                <span class="text-blue-600 text-sm font-bold">${stepIndex + 1}</span>
+                            </div>
+                            <div class="flex-1">
+                                <div class="flex items-center space-x-2 mb-2">
+                                    <span class="text-2xl">${icon}</span>
+                                    <p class="text-sm font-semibold text-gray-800">${instruction}</p>
+                                </div>
+                                <div class="flex items-center space-x-4 text-xs text-gray-500 mb-2">
+                                    <span><i class="fas fa-route mr-1"></i>${distance} km</span>
+                                    <span><i class="fas fa-clock mr-1"></i>${duration} phút</span>
+                                </div>
+                                <div class="flex items-center space-x-2 text-xs">
+                                    <span class="text-lg">${trafficIcon}</span>
+                                    <span class="font-medium ${this.getTrafficColor(trafficInfo.level)}">${trafficText}</span>
+                                    ${trafficInfo.speed ? `<span class="text-gray-500">(${trafficInfo.speed} km/h)</span>` : ''}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+            
+            directionsHtml += '</div>';
+            directionsContainer.innerHTML = directionsHtml;
+            
+        } catch (error) {
+            console.error('Error generating turn-by-turn directions:', error);
+            directionsContainer.innerHTML = `
+                <div class="text-center text-gray-500 py-4">
+                    <i class="fas fa-exclamation-triangle text-2xl mb-2"></i>
+                    <p>Không thể tạo hướng dẫn chi tiết</p>
+                </div>
+            `;
+        }
+    }
+
+    getManeuverIcon(maneuverType) {
+        const iconMap = {
+            'turn': '↩️',
+            'turn-left': '↩️',
+            'turn-right': '↪️',
+            'turn-sharp-left': '↰',
+            'turn-sharp-right': '↱',
+            'uturn': '↶',
+            'straight': '⬆️',
+            'ramp': '↗️',
+            'merge': '🔀',
+            'roundabout': '🔄',
+            'rotary': '🔄',
+            'fork': '🔀',
+            'off-ramp': '↘️',
+            'arrive': '🏁',
+            'depart': '🚀'
+        };
+        
+        return iconMap[maneuverType] || '➡️';
+    }
+
+    validateAndConfirmBooking() {
+        // Get form elements
+        const nameInput = document.getElementById('customerName');
+        const phoneInput = document.getElementById('customerPhone');
+        const emailInput = document.getElementById('customerEmail');
+        const contactTimeSelect = document.getElementById('contactTime');
+        const instructionsTextarea = document.getElementById('specialInstructions');
+        const emergencyContactInput = document.getElementById('emergencyContact');
+        const emergencyPhoneInput = document.getElementById('emergencyPhone');
+
+        // Get values
+        const customerName = nameInput?.value?.trim() || '';
+        const customerPhone = phoneInput?.value?.trim() || '';
+        const customerEmail = emailInput?.value?.trim() || '';
+        const contactTime = contactTimeSelect?.value || '';
+        const specialInstructions = instructionsTextarea?.value?.trim() || '';
+        const emergencyContact = emergencyContactInput?.value?.trim() || '';
+        const emergencyPhone = emergencyPhoneInput?.value?.trim() || '';
+
+        // Validate required fields
+        if (!customerName) {
+            alert('Vui lòng nhập họ và tên khách hàng.');
+            nameInput?.focus();
+            // Hide the form after user acknowledges the error
+            this.hideCustomerForm();
+            return;
+        }
+
+        if (!customerPhone) {
+            alert('Vui lòng nhập số điện thoại khách hàng.');
+            phoneInput?.focus();
+            // Hide the form after user acknowledges the error
+            this.hideCustomerForm();
+            return;
+        }
+
+        // Validate phone number format
+        const phoneRegex = /^(0[3|5|7|8|9])[0-9]{8}$/;
+        if (!phoneRegex.test(customerPhone)) {
+            alert('Vui lòng nhập số điện thoại hợp lệ (10 số, bắt đầu bằng 0).');
+            phoneInput?.focus();
+            // Hide the form after user acknowledges the error
+            this.hideCustomerForm();
+            return;
+        }
+
+        // Validate email if provided
+        if (customerEmail) {
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(customerEmail)) {
+                alert('Vui lòng nhập email hợp lệ.');
+                emailInput?.focus();
+                // Hide the form after user acknowledges the error
+                this.hideCustomerForm();
+                return;
+            }
+        }
+
+        // Validate emergency phone if emergency contact is provided
+        if (emergencyContact && emergencyPhone) {
+            if (!phoneRegex.test(emergencyPhone)) {
+                alert('Vui lòng nhập số điện thoại khẩn cấp hợp lệ.');
+                emergencyPhoneInput?.focus();
+                // Hide the form after user acknowledges the error
+                this.hideCustomerForm();
+                return;
+            }
+        }
+
+        // Collect all customer information
+        const customerInfo = {
+            name: customerName,
+            phone: customerPhone,
+            email: customerEmail,
+            contactTime: contactTime,
+            specialInstructions: specialInstructions,
+            emergencyContact: emergencyContact,
+            emergencyPhone: emergencyPhone
+        };
+
+        // Hide the form first
+        this.hideCustomerForm();
+
+        // Show success message and proceed
+        alert('Thông tin khách hàng đã được lưu thành công!');
+        
+        // Here you would typically send the data to your backend
+        console.log('Customer Information:', customerInfo);
+        console.log('Trip Details:', {
+            pickup: this.pickupLocation,
+            dropoff: this.dropoffLocation,
+            pricing: this.pricing
+        });
+
+        // Show final confirmation
+        this.showFinalConfirmation(customerInfo);
+    }
+
+    hideCustomerForm() {
+        const customerForm = document.getElementById('customerInfoForm');
+        if (customerForm) {
+            customerForm.style.display = 'none';
+        }
+    }
+
+    async updateTrafficAndWeather() {
+        // Update traffic conditions
+        await this.updateTrafficConditions();
+        
+        // Update weather conditions
+        await this.updateWeatherConditions();
+        
+        // Update route quality assessment
+        this.updateRouteQualityAssessment();
+    }
+
+    async updateTrafficConditions() {
+        if (!this.trafficApiKey) {
+            this.setTrafficPlaceholder();
+            return;
+        }
+
+        try {
+            // Get coordinates from route
+            const coordinates = this.routeData?.routes?.[0]?.geometry?.coordinates;
+            if (!coordinates || coordinates.length === 0) {
+                this.setTrafficPlaceholder();
+                return;
+            }
+
+            // Use the first coordinate for traffic check
+            const [lng, lat] = coordinates[0];
+            
+            const response = await fetch(
+                `https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json?key=${this.trafficApiKey}&point=${lat},${lng}`
+            );
+
+            if (response.ok) {
+                const data = await response.json();
+                if (data.flowSegmentData) {
+                    const flow = data.flowSegmentData;
+                    this.updateTrafficDisplay(flow);
+                } else {
+                    this.setTrafficPlaceholder();
+                }
             } else {
-                roadTypeElement.textContent = 'Đường nội thành';
+                this.setTrafficPlaceholder();
+            }
+        } catch (error) {
+            console.error('Error fetching traffic data:', error);
+            this.setTrafficPlaceholder();
+        }
+    }
+
+    updateTrafficDisplay(flow) {
+        const currentSpeed = flow.currentSpeed;
+        const freeFlowSpeed = flow.freeFlowSpeed;
+        
+        // Update traffic level
+        const trafficLevelElement = document.getElementById('trafficLevel');
+        if (trafficLevelElement) {
+            trafficLevelElement.textContent = this.getTrafficLevel(currentSpeed, freeFlowSpeed);
+        }
+        
+        // Update current speed
+        const currentSpeedElement = document.getElementById('currentSpeed');
+        if (currentSpeedElement) {
+            currentSpeedElement.textContent = `${currentSpeed || '--'} km/h`;
+        }
+        
+        // Update normal speed
+        const normalSpeedElement = document.getElementById('normalSpeed');
+        if (normalSpeedElement) {
+            normalSpeedElement.textContent = `${freeFlowSpeed || '--'} km/h`;
+        }
+
+        // Update estimated time
+        const estimatedTimeElement = document.getElementById('estimatedTime');
+        if (estimatedTimeElement && currentSpeed) {
+            const distance = this.routeData?.routes?.[0]?.distance || 0;
+            const estimatedTime = Math.round((distance / 1000) / (currentSpeed / 3.6) * 60);
+            estimatedTimeElement.textContent = `${estimatedTime} phút`;
+        }
+    }
+
+    setTrafficPlaceholder() {
+        const trafficLevelElement = document.getElementById('trafficLevel');
+        const currentSpeedElement = document.getElementById('currentSpeed');
+        const normalSpeedElement = document.getElementById('normalSpeed');
+        const estimatedTimeElement = document.getElementById('estimatedTime');
+        
+        if (trafficLevelElement) trafficLevelElement.textContent = 'Không xác định';
+        if (currentSpeedElement) currentSpeedElement.textContent = '-- km/h';
+        if (normalSpeedElement) normalSpeedElement.textContent = '-- km/h';
+        if (estimatedTimeElement) estimatedTimeElement.textContent = '-- phút';
+    }
+
+    async updateWeatherConditions() {
+        if (!this.weatherApiKey) {
+            this.setWeatherPlaceholder();
+            return;
+        }
+
+        try {
+            const response = await fetch(
+                `https://api.weatherapi.com/v1/current.json?key=${this.weatherApiKey}&q=Hanoi&lang=vi`
+            );
+
+            if (response.ok) {
+                const data = await response.json();
+                this.updateWeatherDisplay(data);
+            } else {
+                this.setWeatherPlaceholder();
+            }
+        } catch (error) {
+            console.error('Error fetching weather data:', error);
+            this.setWeatherPlaceholder();
+        }
+    }
+
+    updateWeatherDisplay(weatherData) {
+        const weatherConditionElement = document.getElementById('weatherCondition');
+        const temperatureElement = document.getElementById('temperature');
+        const humidityElement = document.getElementById('humidity');
+        const weatherImpactElement = document.getElementById('weatherImpact');
+        
+        if (weatherConditionElement) {
+            weatherConditionElement.textContent = weatherData.current?.condition?.text || 'Không xác định';
+        }
+        
+        if (temperatureElement) {
+            temperatureElement.textContent = `${weatherData.current?.temp_c || '--'}°C`;
+        }
+        
+        if (humidityElement) {
+            humidityElement.textContent = `${weatherData.current?.humidity || '--'}%`;
+        }
+        
+        if (weatherImpactElement) {
+            const condition = weatherData.current?.condition?.text?.toLowerCase() || '';
+            if (condition.includes('mưa') || condition.includes('rain')) {
+                weatherImpactElement.textContent = 'Có thể ảnh hưởng';
+                weatherImpactElement.className = 'font-semibold text-red-600';
+            } else if (condition.includes('nắng') || condition.includes('sunny')) {
+                weatherImpactElement.textContent = 'Tốt';
+                weatherImpactElement.className = 'font-semibold text-green-600';
+            } else {
+                weatherImpactElement.textContent = 'Bình thường';
+                weatherImpactElement.className = 'font-semibold text-orange-600';
             }
         }
     }
 
-    calculateDetailedPricing(distance, duration) {
+    setWeatherPlaceholder() {
+        const weatherConditionElement = document.getElementById('weatherCondition');
+        const temperatureElement = document.getElementById('temperature');
+        const humidityElement = document.getElementById('humidity');
+        const weatherImpactElement = document.getElementById('weatherImpact');
+        
+        if (weatherConditionElement) weatherConditionElement.textContent = 'Không xác định';
+        if (temperatureElement) temperatureElement.textContent = '--°C';
+        if (humidityElement) humidityElement.textContent = '--%';
+        if (weatherImpactElement) {
+            weatherImpactElement.textContent = 'Bình thường';
+            weatherImpactElement.className = 'font-semibold text-orange-600';
+        }
+    }
+
+    updateRouteQualityAssessment() {
+        const routeScoreElement = document.getElementById('routeScore');
+        const trafficScoreElement = document.getElementById('trafficScore');
+        const safetyScoreElement = document.getElementById('safetyScore');
+        
+        // Calculate route quality score (1-10)
+        const distance = this.routeData?.routes?.[0]?.distance || 0;
+        const duration = this.routeData?.routes?.[0]?.duration || 0;
+        
+        let routeScore = 8; // Base score
+        if (distance > 50000) routeScore -= 1; // Long distance
+        if (duration > 3600) routeScore -= 1; // Long duration
+        
+        if (routeScoreElement) {
+            routeScoreElement.textContent = routeScore;
+        }
+        
+        // Calculate traffic score (1-10)
+        let trafficScore = 7; // Base score
+        // This would be updated with real traffic data
+        if (trafficScoreElement) {
+            trafficScoreElement.textContent = trafficScore;
+        }
+        
+        // Calculate safety score (1-10)
+        let safetyScore = 9; // Base score
+        if (distance > 100000) safetyScore -= 1; // Very long distance
+        if (safetyScoreElement) {
+            safetyScoreElement.textContent = safetyScore;
+        }
+    }
+
+    showFinalConfirmation(customerInfo) {
+        // Create a modal for final confirmation
+        const modal = document.createElement('div');
+        modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+        modal.innerHTML = `
+            <div class="bg-white rounded-lg p-8 max-w-md w-full mx-4">
+                <div class="text-center mb-6">
+                    <div class="bg-green-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
+                        <i class="fas fa-check text-green-600 text-2xl"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-gray-800 mb-2">Đặt xe thành công!</h3>
+                    <p class="text-gray-600">Chúng tôi sẽ liên hệ với bạn trong thời gian sớm nhất.</p>
+                </div>
+                
+                <div class="bg-gray-50 rounded-lg p-4 mb-6">
+                    <h4 class="font-semibold text-gray-800 mb-2">Thông tin đặt xe:</h4>
+                    <div class="text-sm text-gray-600 space-y-1">
+                        <p><strong>Khách hàng:</strong> ${customerInfo.name}</p>
+                        <p><strong>Số điện thoại:</strong> ${customerInfo.phone}</p>
+                        <p><strong>Điểm đón:</strong> ${this.pickupLocation?.name || '--'}</p>
+                        <p><strong>Điểm đến:</strong> ${this.dropoffLocation?.name || '--'}</p>
+                        <p><strong>Tổng cộng:</strong> ${this.pricing?.totalAmount || '--'} VNĐ</p>
+                    </div>
+                </div>
+                
+                <div class="flex space-x-3">
+                    <button id="closeModal" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg transition-colors">
+                        Đóng
+                    </button>
+                    <button id="printReceipt" class="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-2 px-4 rounded-lg transition-colors">
+                        In hóa đơn
+                    </button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        // Add event listeners
+        document.getElementById('closeModal')?.addEventListener('click', () => {
+            document.body.removeChild(modal);
+        });
+
+        document.getElementById('printReceipt')?.addEventListener('click', () => {
+            window.print();
+            document.body.removeChild(modal);
+        });
+    }
+
+    async getTrafficForStep(step) {
+        if (!this.trafficApiKey) {
+            return { level: 'unknown', speed: null };
+        }
+
+        try {
+            // Get coordinates from step geometry
+            const coordinates = step.geometry.coordinates;
+            if (!coordinates || coordinates.length === 0) {
+                return { level: 'unknown', speed: null };
+            }
+
+            // Use the first coordinate for traffic check
+            const [lng, lat] = coordinates[0];
+            
+            const response = await fetch(
+                `https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json?key=${this.trafficApiKey}&point=${lat},${lng}`
+            );
+
+            if (response.ok) {
+                const data = await response.json();
+                if (data.flowSegmentData) {
+                    const flow = data.flowSegmentData;
+                    const currentSpeed = flow.currentSpeed;
+                    const freeFlowSpeed = flow.freeFlowSpeed;
+                    
+                    if (currentSpeed && freeFlowSpeed) {
+                        const ratio = currentSpeed / freeFlowSpeed;
+                        let level = 'unknown';
+                        
+                        if (ratio >= 0.8) level = 'free';
+                        else if (ratio >= 0.6) level = 'moderate';
+                        else if (ratio >= 0.4) level = 'slow';
+                        else if (ratio >= 0.2) level = 'heavy';
+                        else level = 'severe';
+                        
+                        return { level, speed: Math.round(currentSpeed) };
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Error fetching traffic data for step:', error);
+        }
+        
+        return { level: 'unknown', speed: null };
+    }
+
+    getTrafficIcon(level) {
+        const iconMap = {
+            'free': '🟢',
+            'moderate': '🟡',
+            'slow': '🟠',
+            'heavy': '🔴',
+            'severe': '🔴',
+            'unknown': '⚪'
+        };
+        
+        return iconMap[level] || '⚪';
+    }
+
+    getTrafficText(level) {
+        const textMap = {
+            'free': 'Thông thoáng',
+            'moderate': 'Hơi chậm',
+            'slow': 'Chậm',
+            'heavy': 'Rất chậm',
+            'severe': 'Tắc đường',
+            'unknown': 'Không xác định'
+        };
+        
+        return textMap[level] || 'Không xác định';
+    }
+
+    getTrafficColor(level) {
+        const colorMap = {
+            'free': 'text-green-600',
+            'moderate': 'text-yellow-600',
+            'slow': 'text-orange-600',
+            'heavy': 'text-red-600',
+            'severe': 'text-red-700',
+            'unknown': 'text-gray-500'
+        };
+        
+        return colorMap[level] || 'text-gray-500';
+    }
+
+    translateInstruction(instruction) {
+        // Common instruction translations
+        const translations = {
+            'Head': 'Đi thẳng',
+            'Turn left': 'Rẽ trái',
+            'Turn right': 'Rẽ phải',
+            'Turn sharp left': 'Rẽ trái gấp',
+            'Turn sharp right': 'Rẽ phải gấp',
+            'Turn slight left': 'Rẽ trái nhẹ',
+            'Turn slight right': 'Rẽ phải nhẹ',
+            'Continue straight': 'Tiếp tục đi thẳng',
+            'Go straight': 'Đi thẳng',
+            'Keep left': 'Giữ bên trái',
+            'Keep right': 'Giữ bên phải',
+            'Take the ramp': 'Lên đường dốc',
+            'Take the exit': 'Rời khỏi',
+            'Merge': 'Nhập làn',
+            'Roundabout': 'Vòng xoay',
+            'U-turn': 'Quay đầu',
+            'Arrive': 'Đến nơi',
+            'Depart': 'Khởi hành',
+            'at': 'tại',
+            'onto': 'vào',
+            'on': 'trên',
+            'in': 'trong',
+            'for': 'trong',
+            'meters': 'mét',
+            'kilometers': 'km',
+            'feet': 'feet',
+            'miles': 'dặm'
+        };
+
+        let translatedInstruction = instruction;
+        
+        // Replace common English phrases with Vietnamese
+        Object.keys(translations).forEach(english => {
+            const regex = new RegExp(english, 'gi');
+            translatedInstruction = translatedInstruction.replace(regex, translations[english]);
+        });
+
+        return translatedInstruction;
+    }
+
+    updateEnhancedTripDetails(distance, duration, averageSpeed) {
+        // Update total distance
+        const totalDistanceElement = document.getElementById('totalDistance');
+        if (totalDistanceElement) {
+            totalDistanceElement.textContent = `${distance.toFixed(1)} km`;
+        }
+
+        // Update estimated duration
+        const estimatedDurationElement = document.getElementById('estimatedDuration');
+        if (estimatedDurationElement) {
+            estimatedDurationElement.textContent = `${Math.round(duration)} phút`;
+        }
+
+        // Update average speed
+        const averageSpeedElement = document.getElementById('averageSpeed');
+        if (averageSpeedElement) {
+            averageSpeedElement.textContent = `${averageSpeed} km/h`;
+        }
+
+        // Calculate and update route quality metrics
+        this.updateRouteQualityMetrics(distance, duration, averageSpeed);
+    }
+
+    updateRouteQualityMetrics(distance, duration, averageSpeed) {
+        // Calculate route score (0-100)
+        const routeScore = Math.min(100, Math.max(0, 
+            (averageSpeed / 50) * 40 + // Speed factor (max 40 points)
+            (distance > 0 ? 30 : 0) + // Distance factor (30 points if route exists)
+            (duration > 0 ? 30 : 0) // Duration factor (30 points if route exists)
+        ));
+
+        // Calculate traffic level (1-5, 1 being best)
+        const trafficLevel = averageSpeed < 20 ? 5 : 
+                           averageSpeed < 30 ? 4 : 
+                           averageSpeed < 40 ? 3 : 
+                           averageSpeed < 50 ? 2 : 1;
+
+        // Calculate safety level (1-5, 1 being safest)
+        const safetyLevel = distance < 5 ? 1 : 
+                           distance < 15 ? 2 : 
+                           distance < 30 ? 3 : 
+                           distance < 50 ? 4 : 5;
+
+        // Update route score
+        const routeScoreElement = document.getElementById('routeScore');
+        if (routeScoreElement) {
+            routeScoreElement.textContent = `${Math.round(routeScore)}/100`;
+        }
+
+        // Update traffic level
+        const trafficLevelElement = document.getElementById('trafficLevel');
+        if (trafficLevelElement) {
+            const trafficText = ['Rất tốt', 'Tốt', 'Trung bình', 'Kém', 'Rất kém'][trafficLevel - 1];
+            trafficLevelElement.textContent = trafficText;
+        }
+
+        // Update safety level
+        const safetyLevelElement = document.getElementById('safetyLevel');
+        if (safetyLevelElement) {
+            const safetyText = ['Rất an toàn', 'An toàn', 'Trung bình', 'Cần cẩn thận', 'Rủi ro cao'][safetyLevel - 1];
+            safetyLevelElement.textContent = safetyText;
+        }
+    }
+
+    calculateDetailedPricing(route) {
+        const distance = route.distance / 1000;
+        const duration = route.duration / 60;
+
+        // Base pricing
+        const baseFare = 15000;
+        const perKmRate = 12000;
+        const perMinuteRate = 500;
+
+        // Calculate base costs
+        const distanceFare = distance * perKmRate;
+        const timeFare = duration * perMinuteRate;
+        const subtotal = baseFare + distanceFare + timeFare;
+
+        // Apply surcharges
+        const rushHourFactor = this.getRushHourFactor();
+        const weatherFactor = this.getWeatherFactor();
+        const trafficFactor = this.getTrafficCongestionFactor();
+
+        const rushHourSurcharge = subtotal * rushHourFactor;
+        const weatherSurcharge = subtotal * weatherFactor;
+        const trafficSurcharge = subtotal * trafficFactor;
+        const totalSurcharge = rushHourSurcharge + weatherSurcharge + trafficSurcharge;
+
+        // Calculate VAT (10%)
+        const beforeVAT = subtotal + totalSurcharge;
+        const vat = beforeVAT * 0.1;
+        const total = beforeVAT + vat;
+
+        // Update pricing display
+        this.updatePricingDisplay({
+            baseFare,
+            distanceFare: distanceFare.toFixed(0),
+            timeFare: timeFare.toFixed(0),
+            subtotal: subtotal.toFixed(0),
+            rushHourSurcharge: rushHourSurcharge.toFixed(0),
+            weatherSurcharge: weatherSurcharge.toFixed(0),
+            trafficSurcharge: trafficSurcharge.toFixed(0),
+            totalSurcharge: totalSurcharge.toFixed(0),
+            vat: vat.toFixed(0),
+            total: total.toFixed(0),
+            rushHourFactor: (rushHourFactor * 100).toFixed(1),
+            weatherFactor: (weatherFactor * 100).toFixed(1),
+            trafficFactor: (trafficFactor * 100).toFixed(1)
+        });
+    }
+
+    getRushHourFactor() {
         const now = new Date();
         const hour = now.getHours();
-        const isRushHour = (hour >= 7 && hour <= 9) || (hour >= 17 && hour <= 19);
+        const day = now.getDay();
+
+        // Weekdays: 7-9 AM, 5-7 PM
+        if (day >= 1 && day <= 5) {
+            if ((hour >= 7 && hour <= 9) || (hour >= 17 && hour <= 19)) {
+                return 0.08; // 8% surcharge
+            }
+        }
         
-        // Base pricing
-        const baseFee = 15000;
-        const pricePerKm = 15000;
-        const waitTimeFee = 0; // No wait time for estimation
-        const waitTimeFeePerMin = 5000;
-        
-        // Calculate base amounts
-        const distanceFee = Math.round(distance * pricePerKm);
-        const waitFee = Math.round(waitTimeFee * waitTimeFeePerMin);
-        
-        // Update distance quantity
+        // Lunch time: 11:30 AM - 1:30 PM
+        if (hour >= 11.5 && hour <= 13.5) {
+            return 0.05; // 5% surcharge
+        }
+
+        return 0;
+    }
+
+    getWeatherFactor() {
+        // This would be connected to weather API
+        // For now, return 0
+        return 0;
+    }
+
+    getTrafficCongestionFactor() {
+        // This would be connected to TomTom Traffic API
+        // For now, return 0
+        return 0;
+    }
+
+    updatePricingDisplay(pricing) {
+        // Update individual pricing elements
+        const baseFeeTotal = document.getElementById('baseFeeTotal');
+        if (baseFeeTotal) baseFeeTotal.textContent = `${parseInt(pricing.baseFare).toLocaleString()} VNĐ`;
+
         const distanceQty = document.getElementById('distanceQty');
-        if (distanceQty) distanceQty.textContent = `${distance.toFixed(1)} km`;
-        
-        // Update distance fee
         const distanceFeeTotal = document.getElementById('distanceFeeTotal');
-        if (distanceFeeTotal) distanceFeeTotal.textContent = `${distanceFee.toLocaleString()} VNĐ`;
-        
-        // Calculate subtotal before surcharges
-        let subtotal = baseFee + distanceFee + waitFee;
-        
-        // Rush hour surcharge (8%) - Giảm xuống dưới 10%
-        let rushHourFee = 0;
-        if (isRushHour) {
-            rushHourFee = Math.round(subtotal * 0.08);
-            const rushHourRow = document.getElementById('rushHourFeeRow');
-            const rushHourFeeTotal = document.getElementById('rushHourFeeTotal');
-            if (rushHourRow) rushHourRow.classList.remove('hidden');
-            if (rushHourFeeTotal) rushHourFeeTotal.textContent = `${rushHourFee.toLocaleString()} VNĐ`;
+        if (distanceQty) distanceQty.textContent = `${parseFloat(pricing.distanceFare / 12000).toFixed(1)} km`;
+        if (distanceFeeTotal) distanceFeeTotal.textContent = `${parseInt(pricing.distanceFare).toLocaleString()} VNĐ`;
+
+        const waitTimeFeeTotal = document.getElementById('waitTimeFeeTotal');
+        if (waitTimeFeeTotal) waitTimeFeeTotal.textContent = `${parseInt(pricing.timeFare).toLocaleString()} VNĐ`;
+
+        const subtotalAmount = document.getElementById('subtotalAmount');
+        if (subtotalAmount) subtotalAmount.textContent = `${parseInt(pricing.subtotal).toLocaleString()} VNĐ`;
+
+        const vatAmount = document.getElementById('vatAmount');
+        if (vatAmount) vatAmount.textContent = `${parseInt(pricing.vat).toLocaleString()} VNĐ`;
+
+        const totalAmount = document.getElementById('totalAmount');
+        if (totalAmount) totalAmount.textContent = `${parseInt(pricing.total).toLocaleString()} VNĐ`;
+
+        // Show/hide surcharge rows based on factors
+        const rushHourFeeRow = document.getElementById('rushHourFeeRow');
+        const rushHourFeeTotal = document.getElementById('rushHourFeeTotal');
+        if (pricing.rushHourFactor > 0) {
+            if (rushHourFeeRow) rushHourFeeRow.classList.remove('hidden');
+            if (rushHourFeeTotal) rushHourFeeTotal.textContent = `${parseInt(pricing.rushHourSurcharge).toLocaleString()} VNĐ`;
         }
-        
-        // Weather surcharge (5%) - Đã dưới 10%
-        let weatherFee = 0;
-        if (this.weatherData && ['Rain', 'Thunderstorm', 'Heavy Rain'].includes(this.weatherData.condition)) {
-            weatherFee = Math.round(subtotal * 0.05);
-            const weatherRow = document.getElementById('weatherFeeRow');
-            const weatherFeeTotal = document.getElementById('weatherFeeTotal');
-            if (weatherRow) weatherRow.classList.remove('hidden');
-            if (weatherFeeTotal) weatherFeeTotal.textContent = `${weatherFee.toLocaleString()} VNĐ`;
+
+        const weatherFeeRow = document.getElementById('weatherFeeRow');
+        const weatherFeeTotal = document.getElementById('weatherFeeTotal');
+        if (pricing.weatherFactor > 0) {
+            if (weatherFeeRow) weatherFeeRow.classList.remove('hidden');
+            if (weatherFeeTotal) weatherFeeTotal.textContent = `${parseInt(pricing.weatherSurcharge).toLocaleString()} VNĐ`;
         }
-        
-        // KHÔNG cộng phí thu vào tổng tiền
-        // Chỉ thông báo có trạm thu phí
-        
-        // Calculate subtotal with surcharges (KHÔNG bao gồm toll)
-        subtotal = subtotal + rushHourFee + weatherFee;
-        
-        // Calculate VAT (8%)
-        const vat = Math.round(subtotal * 0.08);
-        
-        // Calculate total
-        const total = subtotal + vat;
-        
-        // Update UI
-        const subtotalElement = document.getElementById('subtotalAmount');
-        const vatElement = document.getElementById('vatAmount');
-        const totalElement = document.getElementById('totalAmount');
-        
-        if (subtotalElement) subtotalElement.textContent = `${subtotal.toLocaleString()} VNĐ`;
-        if (vatElement) vatElement.textContent = `${vat.toLocaleString()} VNĐ`;
-        if (totalElement) totalElement.textContent = `${total.toLocaleString()} VNĐ`;
-        
-        // Also update the old estimatedPrice element if it exists
-        const estimatedPriceElement = document.getElementById('estimatedPrice');
-        if (estimatedPriceElement) {
-            estimatedPriceElement.textContent = `${total.toLocaleString()} VNĐ`;
+    }
+
+    async fetchTrafficData(routeData) {
+        if (!this.trafficApiKey) return;
+
+        try {
+            // Use TomTom Traffic API
+            const coordinates = routeData.routes[0].geometry.coordinates;
+            const bbox = this.calculateBoundingBox(coordinates);
+            
+            const response = await fetch(
+                `https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json?key=${this.trafficApiKey}&point=${coordinates[0][1]},${coordinates[0][0]}`
+            );
+            
+            if (response.ok) {
+                const data = await response.json();
+                this.processTrafficData(data);
+            }
+        } catch (error) {
+            console.error('Traffic data fetch error:', error);
+        }
+    }
+
+    calculateBoundingBox(coordinates) {
+        let minLat = coordinates[0][1];
+        let maxLat = coordinates[0][1];
+        let minLng = coordinates[0][0];
+        let maxLng = coordinates[0][0];
+
+        coordinates.forEach(coord => {
+            minLat = Math.min(minLat, coord[1]);
+            maxLat = Math.max(maxLat, coord[1]);
+            minLng = Math.min(minLng, coord[0]);
+            maxLng = Math.max(maxLng, coord[0]);
+        });
+
+        return `${minLat},${minLng},${maxLat},${maxLng}`;
+    }
+
+    processTrafficData(data) {
+        // Process TomTom traffic data
+        if (data.flowSegmentData) {
+            const flowData = data.flowSegmentData;
+            this.updateTrafficInfo(flowData);
+        }
+    }
+
+    updateTrafficInfo(flowData) {
+        // Update traffic information display
+        const trafficElement = document.getElementById('trafficInfo');
+        if (trafficElement) {
+            const speed = flowData.currentSpeed || 0;
+            const freeFlowSpeed = flowData.freeFlowSpeed || 0;
+            const congestionLevel = speed / freeFlowSpeed;
+
+            let congestionText = 'Thông thoáng';
+            let congestionColor = 'text-green-600';
+
+            if (congestionLevel < 0.3) {
+                congestionText = 'Rất tắc';
+                congestionColor = 'text-red-600';
+            } else if (congestionLevel < 0.6) {
+                congestionText = 'Tắc đường';
+                congestionColor = 'text-orange-600';
+            } else if (congestionLevel < 0.8) {
+                congestionText = 'Chậm';
+                congestionColor = 'text-yellow-600';
+            }
+
+            trafficElement.innerHTML = `
+                <div class="flex items-center justify-between">
+                    <span>Tình trạng giao thông:</span>
+                    <span class="font-semibold ${congestionColor}">${congestionText}</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span>Tốc độ hiện tại:</span>
+                    <span class="font-semibold">${speed} km/h</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span>Tốc độ bình thường:</span>
+                    <span class="font-semibold">${freeFlowSpeed} km/h</span>
+                </div>
+            `;
+        }
+    }
+
+    async fetchRealTimeData() {
+        // Fetch weather data
+        if (this.weatherApiKey && this.pickupLocation) {
+            try {
+                const response = await fetch(
+                    `https://api.weatherapi.com/v1/current.json?key=${this.weatherApiKey}&q=${this.pickupLocation.coords[1]},${this.pickupLocation.coords[0]}&lang=vi`
+                );
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    this.updateWeatherInfo(data);
+                }
+            } catch (error) {
+                console.error('Weather data fetch error:', error);
+            }
+        }
+
+        // Update conditions display
+        this.updateConditionsDisplay();
+    }
+
+    updateWeatherInfo(data) {
+        const weatherElement = document.getElementById('weatherInfo');
+        if (weatherElement && data.current) {
+            const current = data.current;
+            weatherElement.innerHTML = `
+                <div class="flex items-center justify-between">
+                    <span>Thời tiết:</span>
+                    <span class="font-semibold">${current.condition.text}</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span>Nhiệt độ:</span>
+                    <span class="font-semibold">${current.temp_c}°C</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <span>Độ ẩm:</span>
+                    <span class="font-semibold">${current.humidity}%</span>
+                </div>
+            `;
         }
     }
 
     updateConditionsDisplay() {
         // Update rush hour status
-        const now = new Date();
-        const hour = now.getHours();
-        const isRushHour = (hour >= 7 && hour <= 9) || (hour >= 17 && hour <= 19);
-        
-        const rushHourIcon = document.getElementById('rushHourIcon');
-        const rushHourStatus = document.getElementById('rushHourStatus');
-        const rushHourBar = document.getElementById('rushHourBar');
-        
-        if (isRushHour) {
-            rushHourIcon.textContent = '🔴';
-            rushHourStatus.textContent = 'Giờ cao điểm';
-            rushHourStatus.className = 'text-base font-bold text-red-600 mt-1';
-            if (rushHourBar) rushHourBar.style.width = '90%';
-        } else {
-            rushHourIcon.textContent = '🟢';
-            rushHourStatus.textContent = 'Bình thường';
-            rushHourStatus.className = 'text-base font-bold text-green-600 mt-1';
-            if (rushHourBar) rushHourBar.style.width = '30%';
+        const rushHourElement = document.getElementById('rushHourStatus');
+        if (rushHourElement) {
+            const isRushHour = this.getRushHourFactor() > 0;
+            rushHourElement.innerHTML = `
+                <div class="flex items-center space-x-2">
+                    <i class="fas fa-clock ${isRushHour ? 'text-orange-500' : 'text-green-500'}"></i>
+                    <span class="${isRushHour ? 'text-orange-600' : 'text-green-600'}">
+                        ${isRushHour ? 'Giờ cao điểm' : 'Giờ bình thường'}
+                    </span>
+                </div>
+            `;
         }
 
         // Update traffic status
-        const trafficIcon = document.getElementById('trafficIcon');
-        const trafficStatus = document.getElementById('trafficStatus');
-        const trafficBar = document.getElementById('trafficBar');
-        
-        if (this.trafficData) {
-            const speedRatio = this.trafficData.currentSpeed / this.trafficData.freeFlowSpeed;
-            if (speedRatio < 0.5) {
-                trafficIcon.textContent = '🔴';
-                trafficStatus.textContent = 'Tắc nghiêm trọng';
-                trafficStatus.className = 'text-base font-bold text-red-600 mt-1';
-                if (trafficBar) trafficBar.style.width = '95%';
-            } else if (speedRatio < 0.8) {
-                trafficIcon.textContent = '🟡';
-                trafficStatus.textContent = 'Chậm';
-                trafficStatus.className = 'text-base font-bold text-orange-600 mt-1';
-                if (trafficBar) trafficBar.style.width = '60%';
-            } else {
-                trafficIcon.textContent = '🟢';
-                trafficStatus.textContent = 'Thông thoáng';
-                trafficStatus.className = 'text-base font-bold text-green-600 mt-1';
-                if (trafficBar) trafficBar.style.width = '20%';
-            }
+        const trafficElement = document.getElementById('trafficStatus');
+        if (trafficElement) {
+            trafficElement.innerHTML = `
+                <div class="flex items-center space-x-2">
+                    <i class="fas fa-car text-blue-500"></i>
+                    <span class="text-blue-600">Đang kiểm tra tình trạng giao thông...</span>
+                </div>
+            `;
         }
 
         // Update weather status
-        const weatherIcon = document.getElementById('weatherIcon');
-        const weatherStatus = document.getElementById('weatherStatus');
-        const weatherDetails = document.getElementById('weatherDetails');
-        
-        if (this.weatherData) {
-            const condition = this.weatherData.condition;
-            if (condition.includes('Rain') || condition.includes('Thunder')) {
-                weatherIcon.textContent = '🌧️';
-            } else if (condition.includes('Cloud')) {
-                weatherIcon.textContent = '☁️';
-            } else {
-                weatherIcon.textContent = '☀️';
-            }
-            weatherStatus.textContent = `${this.weatherData.temperature}°C`;
-            weatherStatus.className = 'text-base font-bold text-blue-600 mt-1';
-            
-            if (weatherDetails) {
-                weatherDetails.textContent = `Nhiệt độ: ${this.weatherData.temperature}°C | Độ ẩm: ${this.weatherData.humidity}%`;
-            }
+        const weatherElement = document.getElementById('weatherStatus');
+        if (weatherElement) {
+            weatherElement.innerHTML = `
+                <div class="flex items-center space-x-2">
+                    <i class="fas fa-cloud-sun text-yellow-500"></i>
+                    <span class="text-yellow-600">Đang kiểm tra thời tiết...</span>
+                </div>
+            `;
         }
 
         // Update location status
-        const locationIcon = document.getElementById('locationIcon');
-        const locationStatus = document.getElementById('locationStatus');
-        const locationDetails = document.getElementById('locationDetails');
-        
-        if (this.pickupLocation) {
-            // Check if in city center based on coordinates
-            const cityCenterLat = 21.0285;
-            const cityCenterLng = 105.8542;
-            const distance = this.calculateDistance(
-                this.pickupLocation.lat, this.pickupLocation.lng,
-                cityCenterLat, cityCenterLng
-            );
-            
-            if (distance < 2) {
-                locationIcon.textContent = '🏛️';
-                locationStatus.textContent = 'Trung tâm';
-                locationStatus.className = 'text-base font-bold text-purple-600 mt-1';
-                if (locationDetails) locationDetails.textContent = `Cách trung tâm: ${distance.toFixed(2)} km`;
-            } else if (distance < 5) {
-                locationIcon.textContent = '🏙️';
-                locationStatus.textContent = 'Nội thành';
-                locationStatus.className = 'text-base font-bold text-indigo-600 mt-1';
-                if (locationDetails) locationDetails.textContent = `Cách trung tâm: ${distance.toFixed(2)} km`;
-            } else {
-                locationIcon.textContent = '🌆';
-                locationStatus.textContent = 'Ngoại thành';
-                locationStatus.className = 'text-base font-bold text-gray-600 mt-1';
-                if (locationDetails) locationDetails.textContent = `Cách trung tâm: ${distance.toFixed(2)} km`;
-            }
+        const locationElement = document.getElementById('locationStatus');
+        if (locationElement) {
+            locationElement.innerHTML = `
+                <div class="flex items-center space-x-2">
+                    <i class="fas fa-map-marker-alt text-green-500"></i>
+                    <span class="text-green-600">Vị trí đã xác định</span>
+                </div>
+            `;
         }
     }
 
     bindEvents() {
         // Back to booking button
-        const backBtn = document.getElementById('backToBooking');
-        if (backBtn) {
-            backBtn.addEventListener('click', () => {
-                window.location.href = 'index.html';
-            });
-        }
+        document.getElementById('backToBooking')?.addEventListener('click', () => {
+            window.location.href = 'index.html';
+        });
 
-        // Confirm booking button
-        const confirmBtn = document.getElementById('confirmBooking');
-        if (confirmBtn) {
-            confirmBtn.addEventListener('click', () => {
-                this.processBooking();
-            });
-        }
+        // Confirm booking button with validation
+        document.getElementById('confirmBooking')?.addEventListener('click', () => {
+            this.validateAndConfirmBooking();
+        });
 
         // Print invoice button
-        const printBtn = document.getElementById('printInvoice');
-        if (printBtn) {
-            printBtn.addEventListener('click', () => {
-                this.printInvoice();
-            });
+        document.getElementById('printInvoice')?.addEventListener('click', () => {
+            window.print();
+        });
+
+        // Confirm booking button
+        document.getElementById('confirmBooking')?.addEventListener('click', () => {
+            this.confirmBooking();
+        });
+
+        // Trip details close button
+        document.getElementById('closeTripDetails')?.addEventListener('click', () => {
+            this.hideTripDetails();
+        });
+    }
+
+    confirmBooking() {
+        // Show confirmation message
+        alert('Đặt xe thành công! Chúng tôi sẽ liên hệ với bạn trong vòng 5 phút.');
+        
+        // Redirect to main page
+        window.location.href = 'index.html';
+    }
+
+    hideTripDetails() {
+        const tripDetails = document.getElementById('tripDetails');
+        if (tripDetails) {
+            tripDetails.style.display = 'none';
         }
-    }
-
-    printInvoice() {
-        // Create a print-friendly version
-        window.print();
-    }
-
-    processBooking() {
-        const customerName = document.getElementById('customerName').value.trim();
-        const customerPhone = document.getElementById('customerPhone').value.trim();
-        const notes = document.getElementById('notes').value.trim();
-
-        // Validation
-        if (!customerName || !customerPhone) {
-            this.showNotification('⚠️ Vui lòng điền đầy đủ thông tin khách hàng', 'warning');
-            
-            // Scroll to customer info section
-            document.getElementById('customerName').scrollIntoView({ behavior: 'smooth', block: 'center' });
-            return;
-        }
-
-        // Validate phone number (basic check)
-        const phoneRegex = /^[0-9]{10,11}$/;
-        if (!phoneRegex.test(customerPhone.replace(/[\s-]/g, ''))) {
-            this.showNotification('⚠️ Số điện thoại không hợp lệ', 'warning');
-            return;
-        }
-
-        // Get selected payment method
-        const paymentMethod = document.querySelector('input[name="paymentMethod"]:checked')?.value || 'cash';
-
-        // Simulate booking process
-        const button = document.getElementById('confirmBooking');
-        const originalText = button.innerHTML;
-        button.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i><span>Đang xử lý...</span>';
-        button.disabled = true;
-
-        setTimeout(() => {
-            const bookingData = {
-                invoiceNumber: document.getElementById('invoiceNumber').textContent,
-                customerName: customerName,
-                customerPhone: customerPhone,
-                notes: notes,
-                paymentMethod: paymentMethod,
-                pickup: this.pickupLocation,
-                dropoff: this.dropoffLocation,
-                distance: document.getElementById('distance').textContent,
-                duration: document.getElementById('duration').textContent,
-                totalAmount: document.getElementById('totalAmount').textContent
-            };
-            
-            this.showBookingSuccess(bookingData);
-            button.innerHTML = originalText;
-            button.disabled = false;
-        }, 2000);
-    }
-
-    showBookingSuccess(bookingData) {
-        this.showNotification('✅ Đặt xe thành công! Tài xế sẽ liên hệ trong 5 phút', 'success');
-        
-        // Log booking data
-        console.log('Booking confirmed:', bookingData);
-        
-        // Scroll to top
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-        
-        // Optional: Could save to localStorage or send to backend
-        // localStorage.setItem('lastBooking', JSON.stringify(bookingData));
-    }
-
-    showNotification(message, type = 'info') {
-        const container = document.getElementById('notificationContainer');
-        
-        const notification = document.createElement('div');
-        notification.className = `mb-4 p-4 rounded-lg shadow-lg transform transition-all duration-300 translate-x-full`;
-        
-        const colors = {
-            success: 'bg-green-500 text-white',
-            error: 'bg-red-500 text-white',
-            warning: 'bg-yellow-500 text-white',
-            info: 'bg-blue-500 text-white'
-        };
-        
-        notification.className += ` ${colors[type] || colors.info}`;
-        notification.innerHTML = message;
-
-        container.appendChild(notification);
-
-        // Animate in
-        setTimeout(() => {
-            notification.classList.remove('translate-x-full');
-        }, 100);
-
-        // Auto remove after 3 seconds
-        setTimeout(() => {
-            notification.classList.add('translate-x-full');
-            setTimeout(() => {
-                notification.remove();
-            }, 300);
-        }, 3000);
     }
 }
 
-// Initialize when DOM is loaded
+// Initialize confirmation page when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     new ConfirmationPage();
 });
-
-
